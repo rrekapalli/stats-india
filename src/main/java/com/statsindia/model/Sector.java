@@ -4,6 +4,12 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Represents an economic or social sector in the system.
+ * This entity categorizes statistical data into different sectors such as agriculture,
+ * education, healthcare, or industry. It supports a hierarchical structure through
+ * parent-child relationships, allowing for representation of sector hierarchies and sub-sectors.
+ */
 @Getter
 @Setter
 @Entity

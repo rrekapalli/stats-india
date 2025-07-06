@@ -13,6 +13,7 @@ import { StatisticsListComponent } from './components/statistics-list/statistics
 import { StatisticDetailComponent } from './components/statistic-detail/statistic-detail.component';
 import { StatisticFormComponent } from './components/statistic-form/statistic-form.component';
 import { StatisticService } from './services/statistic.service';
+import { MetricService } from './services/metric.service';
 
 const routes: Routes = [
   { path: '', component: HomeComponent },
@@ -42,6 +43,7 @@ const routes: Routes = [
   ],
   providers: [
     StatisticService,
+    MetricService,
     DatePipe
   ],
   bootstrap: [AppComponent]
