@@ -1,0 +1,85 @@
+<div class="statistics-container">
+  <h2 class="mb-4">Statistics List</h2>
+  
+  <!-- Filters -->
+  <div class="card mb-4">
+    <div class="card-body">
+      <h5 class="card-title">Filters</h5>
+      <div class="row">
+        <div class="col-md-3 mb-2">
+          <label for="categoryFilter" class="form-label">Category</label>
+          <input type="text" class="form-control" id="categoryFilter" [(ngModel)]="filterCategory" placeholder="Filter by category">
+        </div>
+        <div class="col-md-3 mb-2">
+          <label for="stateFilter" class="form-label">State</label>
+          <input type="text" class="form-control" id="stateFilter" [(ngModel)]="filterState" placeholder="Filter by state">
+        </div>
+        <div class="col-md-3 mb-2">
+          <label for="metricFilter" class="form-label">Metric</label>
+          <input type="text" class="form-control" id="metricFilter" [(ngModel)]="filterMetric" placeholder="Filter by metric">
+        </div>
+        <div class="col-md-3 d-flex align-items-end mb-2">
+          <button class="btn btn-primary me-2" (click)="loadStatistics()">Apply Filters</button>
+          <button class="btn btn-secondary" (click)="clearFilters()">Clear</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading indicator -->
+  <div *ngIf="loading" class="text-center my-5">
+    <div class="spinner-border text-primary" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+    <p class="mt-2">Loading statistics...</p>
+  </div>
+
+  <!-- Error message -->
+  <div *ngIf="error" class="alert alert-danger">
+    {{ error }}
+  </div>
+
+  <!-- Statistics table -->
+  <div *ngIf="!loading && statistics.length > 0" class="table-responsive">
+    <table class="table table-striped table-hover">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Category</th>
+          <th>State</th>
+          <th>Metric</th>
+          <th>Value</th>
+          <th>Record Date</th>
+          <th>Source</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let stat of statistics">
+          <td>{{ stat.id }}</td>
+          <td>{{ stat.category }}</td>
+          <td>{{ stat.state }}</td>
+          <td>{{ stat.metric }}</td>
+          <td>{{ stat.value }}</td>
+          <td>{{ stat.recordDate | date:'mediumDate' }}</td>
+          <td>{{ stat.source }}</td>
+          <td>
+            <a [routerLink]="['/statistics', stat.id]" class="btn btn-sm btn-info me-1">View</a>
+            <a [routerLink]="['/edit', stat.id]" class="btn btn-sm btn-warning me-1">Edit</a>
+            <button (click)="deleteStatistic(stat.id!)" class="btn btn-sm btn-danger">Delete</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- No results message -->
+  <div *ngIf="!loading && statistics.length === 0" class="alert alert-info">
+    No statistics found. Try clearing filters or add new statistics.
+  </div>
+
+  <!-- Add new button -->
+  <div class="mt-4">
+    <a routerLink="/add" class="btn btn-success">Add New Statistic</a>
+  </div>
+</div>

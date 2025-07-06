@@ -1,0 +1,42 @@
+<div class="home-container">
+  <div class="jumbotron text-center">
+    <h1 class="display-4">{{ title }}</h1>
+    <p class="lead">{{ description }}</p>
+    <hr class="my-4">
+    <p>Explore statistical data across various categories including population, economy, education, health, and agriculture.</p>
+    <div class="mt-4">
+      <a class="btn btn-primary btn-lg me-2" routerLink="/statistics" role="button">View Statistics</a>
+      <a class="btn btn-outline-primary btn-lg" routerLink="/add" role="button">Add New Data</a>
+    </div>
+  </div>
+
+  <div class="row mt-5">
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Population Statistics</h5>
+          <p class="card-text">Explore demographic data across different states and regions of India.</p>
+          <a routerLink="/statistics" [queryParams]="{category: 'Population'}" class="btn btn-sm btn-outline-primary">View Data</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Economic Indicators</h5>
+          <p class="card-text">Analyze GDP, per capita income, and other economic metrics by state.</p>
+          <a routerLink="/statistics" [queryParams]="{category: 'Economy'}" class="btn btn-sm btn-outline-primary">View Data</a>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4 mb-4">
+      <div class="card h-100">
+        <div class="card-body">
+          <h5 class="card-title">Education Metrics</h5>
+          <p class="card-text">Examine literacy rates and educational achievements across India.</p>
+          <a routerLink="/statistics" [queryParams]="{category: 'Education'}" class="btn btn-sm btn-outline-primary">View Data</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
