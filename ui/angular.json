@@ -1,7 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/angular-cli",
   "version": 1,
-  "defaultProject": "stats-india-ui",
   "projects": {
     "stats-india-ui": {
       "projectType": "application",
@@ -15,7 +14,7 @@
             "outputPath": "../src/main/resources/static",
             "index": "src/index.html",
             "main": "src/main.ts",
-            "polyfills": [],
+            "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
             "assets": [
               "src/favicon.ico",
@@ -41,5 +40,8 @@
         }
       }
     }
+  },
+  "cli": {
+    "analytics": false
   }
 }

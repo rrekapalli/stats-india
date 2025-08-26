@@ -84,6 +84,34 @@
                     </execution>
                 </executions>
             </plugin>
+            <!-- Copy Angular browser build output into Spring Boot's static resources -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>copy-angular-to-static</id>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <target>
+                                <!-- Ensure target/classes/static exists -->
+                                <mkdir dir="${project.build.outputDirectory}/static"/>
+                                <!-- Copy everything from ui/dist/*/browser/** into static/, removing leading dirs -->
+                                <copy todir="${project.build.outputDirectory}/static" overwrite="true">
+                                    <fileset dir="${project.basedir}/ui/dist">
+                                        <include name="*/browser/**"/>
+                                    </fileset>
+                                    <mapper type="regexp" from="^.*/browser/(.*)$" to="\1"/>
+                                </copy>
+                            </target>
+                        </configuration>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 </project>

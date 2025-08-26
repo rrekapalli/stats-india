@@ -1,16 +1,48 @@
-<div style="font-family: Arial, sans-serif; padding: 2rem;">
-  <h1>{{ title }}</h1>
-  <p>This is an Angular v20 UI bundled with the API.</p>
-  <section>
-    <h2>Nation Stats (Sample)</h2>
-    <ul>
-      <li *ngFor="let s of stats">
-        <strong>{{ s.label }}:</strong> {{ s.value }}
-      </li>
-    </ul>
-  </section>
-  <section>
-    <h2>API Health</h2>
-    <p>Check <code>/api/health</code> after starting the app.</p>
-  </section>
+<div class="layout">
+  <!-- Top Header -->
+  <header class="top-header">
+    <p-toolbar>
+      <div class="p-toolbar-group-start">
+        <span class="app-title">{{ title }}</span>
+      </div>
+    </p-toolbar>
+  </header>
+
+  <!-- Main content area -->
+  <div class="content">
+    <!-- Left Navigation (30% width) -->
+    <aside class="side-nav">
+      <p-panel header="Navigation">
+        <p-menu [model]="sideNavItems"></p-menu>
+      </p-panel>
+    </aside>
+
+    <!-- Right Content -->
+    <section class="main-panel">
+      <!-- Top Menubar inside right content -->
+      <p-menubar [model]="topMenuItems" class="top-menubar"></p-menubar>
+
+      <!-- Page Content -->
+      <div class="main-content">
+        <ng-container [ngSwitch]="activeView">
+          <div *ngSwitchCase="'overview'">
+            <p-card header="Overview">
+              <p>Quick snapshot of key indicators.</p>
+              <ul>
+                <li *ngFor="let s of stats">
+                  <strong>{{ s.label }}:</strong> {{ s.value }}
+                </li>
+              </ul>
+            </p-card>
+          </div>
+
+          <div *ngSwitchCase="'data'">
+            <p-card header="Data">
+              <p>Data section placeholder. Integrate tables and charts here.</p>
+            </p-card>
+          </div>
+        </ng-container>
+      </div>
+    </section>
+  </div>
 </div>

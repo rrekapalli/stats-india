@@ -1,6 +1,8 @@
-import { enableProdMode, importProvidersFrom } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideRouter, Routes } from '@angular/router';
+import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
+import { providePrimeNG } from 'primeng/config';
+import Aura from '@primeng/themes/aura';
 import { AppComponent } from './app/app.component';
 
 const routes: Routes = [
@@ -10,6 +12,12 @@ const routes: Routes = [
 
 bootstrapApplication(AppComponent, {
   providers: [
-    provideRouter(routes)
+    provideRouter(routes),
+    provideAnimationsAsync(),
+    providePrimeNG({
+      theme: {
+        preset: Aura
+      }
+    })
   ]
-}).catch(err => console.error(err));
+}).catch((err: unknown) => console.error(err));

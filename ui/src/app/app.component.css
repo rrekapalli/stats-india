@@ -1,1 +1,53 @@
-h1 { color: #0b5cab; }
+:host {
+  display: block;
+}
+
+.layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--p-surface-0, #fff);
+  color: var(--p-text-color, inherit);
+}
+
+.top-header .p-toolbar {
+  border-radius: 0;
+}
+
+.app-title {
+  font-weight: 600;
+  font-size: 1.25rem;
+}
+
+.content {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0; /* allow children to overflow auto properly */
+}
+
+.side-nav {
+  flex: 0 0 25%;
+  max-width: 25%;
+  border-right: 1px solid var(--p-content-border-color, #e0e0e0);
+  padding: 1rem;
+  box-sizing: border-box;
+  overflow: auto;
+  background: var(--p-surface-50, #fafafa);
+}
+
+.main-panel {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.top-menubar {
+  border-radius: 0;
+}
+
+.main-content {
+  flex: 1 1 auto;
+  padding: 1rem;
+  overflow: auto;
+}
