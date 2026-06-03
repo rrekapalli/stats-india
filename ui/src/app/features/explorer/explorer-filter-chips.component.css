@@ -1,0 +1,117 @@
+.filter-component {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0 0 0.5rem;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.78rem;
+  background: var(--p-surface-card, #fff);
+  border-radius: 8px;
+  border: 1px solid var(--p-surface-border, #e2e8f0);
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.filter-label {
+  font-weight: 700;
+  color: var(--p-primary-700, #1d4ed8);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filter-badges {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 0.4rem;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.filter-actions {
+  flex-shrink: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.55rem;
+  border-radius: 16px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid var(--p-primary-300, #93c5fd);
+  background: var(--p-surface-0, #fff);
+  color: var(--p-primary-800, #1e3a8a);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.filter-chip:hover {
+  background: var(--p-primary-50, #eff6ff);
+}
+
+.filter-key {
+  font-weight: 700;
+}
+
+.filter-separator {
+  opacity: 0.7;
+}
+
+.filter-value {
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.close-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--p-primary-100, #dbeafe);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.clear-all-btn {
+  border-color: var(--p-orange-300, #fdba74);
+  color: var(--p-orange-800, #9a3412);
+}
+
+.clear-all-btn:hover {
+  background: var(--p-orange-50, #fff7ed);
+}
+
+.empty-state {
+  border-style: dashed;
+  justify-content: center;
+}
+
+.empty-state-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.empty-state-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: var(--p-surface-700, #334155);
+}
+
+.empty-state-description {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--p-surface-600, #64748b);
+}

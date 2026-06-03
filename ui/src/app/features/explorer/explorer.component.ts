@@ -20,7 +20,14 @@ import {
 import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
 import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
 import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
-import { ExplorerCrossFilter } from './explorer-cross-filter';
+import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
+import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
+import {
+  aggregateMcaRecords,
+  dimensionLabelForFilterColumn,
+  filterMcaRecords
+} from './explorer-mca-filter.util';
+import { Observable, forkJoin } from 'rxjs';
 import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
@@ -62,7 +69,8 @@ interface GlanceTile {
     TooltipModule,
     IndiaStateMapComponent,
     BarChartComponent,
-    PieChartComponent
+    PieChartComponent,
+    ExplorerFilterChipsComponent
   ],
   templateUrl: './explorer.component.html',
   styleUrl: './explorer.component.css',
@@ -98,7 +106,13 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   readonly crossFilter = new ExplorerCrossFilter();
 
+  private unfilteredStateMetrics: StateMetric[] = [];
+  private unfilteredDimensions: DimensionGroup[] = [];
+  private liveRecords: Record<string, string>[] = [];
+  private liveRecordsLoading = false;
+
   private syncPollTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly recordPageSize = 10_000;
 
   readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
 
@@ -132,6 +146,9 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.dataFirst = 0;
     this.datasetRecords = [];
+    this.liveRecords = [];
+    this.unfilteredStateMetrics = [];
+    this.unfilteredDimensions = [];
     this.crossFilter.clear();
     this.stopSyncPolling();
     this.cdr.markForCheck();
@@ -220,14 +237,103 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   private applyLiveDatasetResponse(data: DatasetDataResponse): void {
-    this.dimensions = data.dimensionGroups;
-    this.stateMetrics = data.stateMetrics;
+    this.unfilteredStateMetrics = data.stateMetrics;
+    this.unfilteredDimensions = data.dimensionGroups;
     this.liveTotalRecords = data.totalRecords;
     this.recordsCached = data.recordsCached;
     this.syncStatus = data.syncStatus;
     this.cachedAt = data.cachedAt;
-    const chartable = chartableDimensionGroups(data.dimensionGroups);
+    if (this.crossFilter.active) {
+      this.applyCrossFiltersToVisualizations();
+    } else {
+      this.dimensions = data.dimensionGroups;
+      this.stateMetrics = data.stateMetrics;
+    }
+    this.updateAccordionPanels(this.dimensions);
+    this.ensureLiveRecordsLoaded();
+  }
+
+  private updateAccordionPanels(dimensions: DimensionGroup[]): void {
+    const chartable = chartableDimensionGroups(dimensions);
     this.accordionPanels = ['summary', ...chartable.map(g => g.id).slice(0, 4)];
+  }
+
+  private ensureLiveRecordsLoaded(): void {
+    if (!this.isLiveDataset() || this.liveRecordsLoading) {
+      return;
+    }
+    const target = this.recordsCached;
+    if (!target || this.liveRecords.length >= target) {
+      if (this.crossFilter.active) {
+        this.applyCrossFiltersToVisualizations();
+      }
+      return;
+    }
+    this.liveRecordsLoading = true;
+    const resourceId = this.selectedDataset!.id;
+    const pages: Observable<DatasetDataResponse>[] = [];
+    for (let offset = 0; offset < target; offset += this.recordPageSize) {
+      const limit = Math.min(this.recordPageSize, target - offset);
+      pages.push(this.api.getDatasetData(resourceId, offset, limit, true));
+    }
+    forkJoin(pages).subscribe({
+      next: responses => {
+        this.liveRecords = responses.flatMap(r => r.records);
+        this.liveRecordsLoading = false;
+        this.applyCrossFiltersToVisualizations();
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.liveRecordsLoading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  private applyCrossFiltersToVisualizations(): void {
+    if (!this.crossFilter.active) {
+      this.stateMetrics = this.unfilteredStateMetrics;
+      this.dimensions = this.unfilteredDimensions;
+      this.updateAccordionPanels(this.dimensions);
+      return;
+    }
+    if (!this.isLiveDataset() || !this.liveRecords.length) {
+      return;
+    }
+    const filtered = filterMcaRecords(this.liveRecords, this.crossFilter.getFilters());
+    const aggregated = aggregateMcaRecords(filtered, {
+      portalTotal: this.liveTotalRecords,
+      recordsCached: this.recordsCached,
+      filteredCount: filtered.length,
+      fetchedAt: this.cachedAt
+    });
+    this.stateMetrics = aggregated.stateMetrics;
+    this.dimensions = aggregated.dimensionGroups;
+    this.updateAccordionPanels(this.dimensions);
+  }
+
+  activeFilterChips(): readonly ExplorerFilterChip[] {
+    return this.crossFilter.getFilters();
+  }
+
+  addCrossFilter(filterColumn: string, value: string, dimensionLabel?: string): void {
+    const label =
+      dimensionLabel ??
+      dimensionLabelForFilterColumn(filterColumn, this.unfilteredDimensions.length
+        ? this.unfilteredDimensions
+        : this.dimensions);
+    const added = this.crossFilter.add({ filterColumn, dimensionLabel: label, value });
+    if (!added) {
+      return;
+    }
+    this.applyCrossFiltersToVisualizations();
+    this.cdr.markForCheck();
+  }
+
+  removeCrossFilter(chip: ExplorerFilterChip): void {
+    this.crossFilter.remove(chip);
+    this.applyCrossFiltersToVisualizations();
+    this.cdr.markForCheck();
   }
 
   isLiveDataset(): boolean {
@@ -250,7 +356,12 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.syncPollTimer = setInterval(() => {
       this.api.getDatasetData(resourceId, 0, 0, false).subscribe({
         next: data => {
+          const prevCached = this.recordsCached;
           this.applyLiveDatasetResponse(data);
+          if (data.recordsCached > prevCached) {
+            this.liveRecords = [];
+            this.ensureLiveRecordsLoaded();
+          }
           if (!this.isSyncInProgress()) {
             this.stopSyncPolling();
           }
@@ -326,33 +437,24 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   dimensionBarSelectedIds(dimensionId: string): string[] {
-    return this.crossFilter.selectedDimensionValues(dimensionId);
+    return this.crossFilter.selectedValues(dimensionId);
   }
 
-  dimensionBarDimmedIds(dimensionId: string): string[] {
-    if (!this.crossFilter.active || !this.crossFilter.selectedDimensionValues(dimensionId).length) {
-      return [];
-    }
-    return this.barChartItems()
-      .filter(item => this.crossFilter.isDimensionDimmed(dimensionId, item.id))
-      .map(item => item.id);
+  dimensionBarDimmedIds(_dimensionId: string): string[] {
+    return [];
   }
 
   onDimensionBarClick(dimensionId: string, item: BarChartItem): void {
-    this.crossFilter.toggleDimension(dimensionId, item.label);
-    this.cdr.markForCheck();
+    const group = this.barDimensionGroup();
+    this.addCrossFilter(dimensionId, item.label, group?.label);
   }
 
-  crossFilterSummary(): string {
-    const parts: string[] = [];
-    if (this.crossFilter.states.size) {
-      parts.push(`State: ${[...this.crossFilter.states].join(', ')}`);
+  onPieSliceClick(item: PieChartItem): void {
+    const group = this.pieDimensionGroup();
+    if (!group) {
+      return;
     }
-    for (const { dimensionId, values } of this.crossFilter.activeDimensionFilters()) {
-      const label = this.dimensionGroup(dimensionId)?.label ?? dimensionId;
-      parts.push(`${label}: ${values.join(', ')}`);
-    }
-    return parts.join(' · ');
+    this.addCrossFilter(group.id, item.label, group.label);
   }
 
   allStateBarItems(): BarChartItem[] {
@@ -370,34 +472,33 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   crossFilterSelectedState(): string | null {
-    return this.crossFilter.states.size ? [...this.crossFilter.states][0] : null;
+    const values = this.crossFilter.selectedValues('state');
+    return values.length ? values[0] : null;
   }
 
   stateBarSelectedIds(): string[] {
-    return [...this.crossFilter.states];
+    return this.crossFilter.selectedValues('state');
   }
 
   stateBarDimmedIds(): string[] {
-    if (!this.crossFilter.active || this.crossFilter.states.size === 0) {
-      return [];
-    }
-    return this.allStateBarItems()
-      .filter(item => !this.crossFilter.isStateSelected(item.id))
-      .map(item => item.id);
+    return [];
+  }
+
+  mapDimUnselected(): boolean {
+    return this.crossFilter.hasFilterForColumn('state');
   }
 
   onMapStateClick(stateName: string): void {
-    this.crossFilter.toggleState(stateName);
-    this.cdr.markForCheck();
+    this.addCrossFilter('state', stateName, 'State');
   }
 
   onStateBarClick(item: BarChartItem): void {
-    this.crossFilter.toggleState(item.label);
-    this.cdr.markForCheck();
+    this.addCrossFilter('state', item.label, 'State');
   }
 
   clearCrossFilters(): void {
     this.crossFilter.clear();
+    this.applyCrossFiltersToVisualizations();
     this.cdr.markForCheck();
   }
 
@@ -532,6 +633,9 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   mapTotalForPercent(): number {
+    if (this.crossFilter.active && this.isLiveDataset()) {
+      return this.stateMetricsTotal();
+    }
     if (this.isLiveDataset() && this.recordsCached > 0) {
       return this.recordsCached;
     }

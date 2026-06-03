@@ -83,11 +83,11 @@
                 ({{ syncProgressPercent() }}%)
               </p>
             }
-            @if (crossFilter.active) {
-              <div class="crossfilter-banner">
-                <span>Filtered: {{ crossFilterSummary() }}</span>
-                <button type="button" class="crossfilter-clear" (click)="clearCrossFilters()">Clear</button>
-              </div>
+            @if (isLiveDataset()) {
+              <app-explorer-filter-chips
+                [filters]="activeFilterChips()"
+                (removeFilter)="removeCrossFilter($event)"
+                (clearAll)="clearCrossFilters()" />
             }
             <div class="viz-dashboard">
               @if (loading) {
@@ -119,7 +119,7 @@
                     [datasetTitle]="datasetTitleLabel()"
                     [datasetCategory]="datasetCategoryLabel()"
                     [selectedState]="crossFilterSelectedState()"
-                    [dimUnselected]="crossFilter.states.size > 0"
+                    [dimUnselected]="mapDimUnselected()"
                     [embedded]="true"
                     (stateClick)="onMapStateClick($event)" />
                 </article>
@@ -135,7 +135,8 @@
                           [total]="pieChartTotal()"
                           [summaryTitle]="'All ' + pieGroup.label.toLowerCase()"
                           [datasetTitle]="datasetTitleLabel()"
-                          [datasetCategory]="datasetCategoryLabel()" />
+                          [datasetCategory]="datasetCategoryLabel()"
+                          (sliceClick)="onPieSliceClick($event)" />
                       } @else {
                         <p class="muted widget-empty">No breakdown available for {{ pieGroup.label.toLowerCase() }}.</p>
                       }

@@ -1,0 +1,37 @@
+@if (filters.length > 0) {
+  <div class="filter-component">
+    <span class="filter-label">Applied filters</span>
+    <div class="filter-badges">
+      @for (chip of filters; track trackChip($index, chip)) {
+        <button
+          type="button"
+          class="chip filter-chip"
+          (click)="onRemove(chip, $event)"
+          [title]="'Remove ' + chip.dimensionLabel + ' filter'">
+          <span class="filter-key">{{ chip.dimensionLabel }}</span>
+          <span class="filter-separator">:</span>
+          <span class="filter-value">{{ chip.value }}</span>
+          <span class="close-icon" aria-hidden="true">×</span>
+        </button>
+      }
+    </div>
+    <div class="filter-actions">
+      <button
+        type="button"
+        class="chip clear-all-btn"
+        (click)="onClearAll($event)"
+        title="Clear all applied filters">
+        Clear all
+      </button>
+    </div>
+  </div>
+} @else {
+  <div class="filter-component empty-state">
+    <div class="empty-state-content">
+      <p class="empty-state-title">No filters applied</p>
+      <p class="empty-state-description">
+        Click a state on the map, a bar, or a pie slice to filter all charts together.
+      </p>
+    </div>
+  </div>
+}

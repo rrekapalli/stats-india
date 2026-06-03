@@ -3,8 +3,10 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  EventEmitter,
   Input,
   OnChanges,
+  Output,
   OnDestroy,
   SimpleChanges,
   ViewChild,
@@ -44,6 +46,8 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() summaryTitle = 'All categories';
   @Input() datasetTitle = '';
   @Input() datasetCategory = '';
+
+  @Output() sliceClick = new EventEmitter<PieChartItem>();
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLDivElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
@@ -231,6 +235,9 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
           .duration(200)
           .attr('d', arcGen(d) ?? '');
         this.refreshInfoPanel();
+      })
+      .on('click', (_event, d) => {
+        this.sliceClick.emit(d.data);
       });
 
     arcs
