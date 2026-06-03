@@ -1,0 +1,108 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+.pie-chart-host {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pie-chart-viewport {
+  position: relative;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pie-chart-viewport svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.pie-center-panel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  pointer-events: none;
+  max-width: 72%;
+  max-height: 72%;
+  overflow: hidden;
+  text-align: center;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0.15rem 0.2rem;
+  font-size: 0.52rem;
+  line-height: 1.25;
+  text-align: center;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip-title {
+  font-size: 0.58rem;
+  margin-bottom: 0.05rem;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip-value {
+  font-size: 0.64rem;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip-percent {
+  font-size: 0.52rem;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip-subtitle {
+  font-size: 0.5rem;
+  margin-top: 0.08rem;
+}
+
+:host ::ng-deep .pie-center-panel .stats-tooltip-footer {
+  font-size: 0.48rem;
+  margin-top: 0.08rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+:host ::ng-deep .pie-center-lines {
+  margin-top: 0.2rem;
+  text-align: left;
+}
+
+:host ::ng-deep .pie-center-line {
+  display: grid;
+  grid-template-columns: 0.45rem 1fr auto;
+  gap: 0.2rem 0.25rem;
+  align-items: baseline;
+  font-size: 0.5rem;
+  line-height: 1.2;
+  padding: 0.04rem 0;
+}
+
+:host ::ng-deep .pie-center-swatch {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 1px;
+  flex-shrink: 0;
+}
+
+:host ::ng-deep .pie-center-line-label {
+  color: var(--p-text-color, #334155);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .pie-center-line-value {
+  color: var(--p-text-muted-color, #64748b);
+  font-weight: 600;
+  white-space: nowrap;
+}

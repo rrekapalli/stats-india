@@ -124,6 +124,23 @@
                     (stateClick)="onMapStateClick($event)" />
                 </article>
 
+                <article class="dashboard-widget widget-category">
+                  <header class="widget-header">Company category</header>
+                  <div class="widget-body widget-chart-body">
+                    @if (categoryPieItems().length) {
+                      <app-pie-chart
+                        [items]="categoryPieItems()"
+                        [unit]="stateMetrics[0]?.unit ?? 'records'"
+                        [total]="categoryPieTotal()"
+                        summaryTitle="All categories"
+                        [datasetTitle]="datasetTitleLabel()"
+                        [datasetCategory]="datasetCategoryLabel()" />
+                    } @else {
+                      <p class="muted widget-empty">No category breakdown for this dataset.</p>
+                    }
+                  </div>
+                </article>
+
                 <article class="dashboard-widget widget-status">
                   <header class="widget-header">Company status</header>
                   <div class="widget-body widget-chart-body">
@@ -149,6 +166,8 @@
                   <div class="widget-body widget-chart-body widget-states-scroll">
                     <app-bar-chart
                       orientation="horizontal"
+                      [staticInfoPanel]="true"
+                      summaryTitle="All states"
                       [items]="allStateBarItems()"
                       [selectedIds]="stateBarSelectedIds()"
                       [dimmedIds]="stateBarDimmedIds()"

@@ -19,6 +19,7 @@ import {
 } from '../../models/dataset.models';
 import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
 import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
+import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
 import { ExplorerCrossFilter } from './explorer-cross-filter';
 import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
@@ -53,7 +54,8 @@ interface GlanceTile {
     TagModule,
     TooltipModule,
     IndiaStateMapComponent,
-    BarChartComponent
+    BarChartComponent,
+    PieChartComponent
   ],
   templateUrl: './explorer.component.html',
   styleUrl: './explorer.component.css',
@@ -307,6 +309,32 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       label: row.label,
       value: row.count
     }));
+  }
+
+  categoryBreakdown(): { label: string; count: number }[] {
+    const group = this.dimensionGroup('category');
+    if (!group) {
+      return [];
+    }
+    return group.items
+      .map(item => ({
+        label: item.label,
+        count: Number.parseInt(item.valueType, 10) || 0
+      }))
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }
+
+  categoryPieItems(): PieChartItem[] {
+    return this.categoryBreakdown().map(row => ({
+      id: row.label,
+      label: row.label,
+      value: row.count
+    }));
+  }
+
+  categoryPieTotal(): number {
+    return this.dimensionGroupTotal('category') || this.statusTotal();
   }
 
   allStateBarItems(): BarChartItem[] {

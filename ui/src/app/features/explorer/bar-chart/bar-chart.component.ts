@@ -28,11 +28,15 @@ export interface BarChartItem {
     <div class="bar-chart-host"
          #host
          [class.bar-chart-host-horizontal]="orientation === 'horizontal'"
-         [class.bar-chart-host-vertical]="orientation === 'vertical'">
+         [class.bar-chart-host-vertical]="orientation === 'vertical'"
+         [class.bar-chart-host-static-panel]="staticInfoPanel">
       <div class="bar-chart-viewport" #viewport>
+        @if (staticInfoPanel) {
+          <div class="chart-info-panel" [innerHTML]="infoPanelHtml"></div>
+        }
         <svg #svg></svg>
       </div>
-      @if (tooltipVisible) {
+      @if (!staticInfoPanel && tooltipVisible) {
         <div class="map-html-tooltip"
              [innerHTML]="tooltipHtml"
              [style.left.px]="tooltipX"
@@ -53,6 +57,8 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() total = 0;
   @Input() datasetTitle = '';
   @Input() datasetCategory = '';
+  @Input() staticInfoPanel = false;
+  @Input() summaryTitle = 'All states';
 
   @Output() barClick = new EventEmitter<BarChartItem>();
 
@@ -64,9 +70,11 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   tooltipHtml = '';
   tooltipX = 0;
   tooltipY = 0;
+  infoPanelHtml = '';
 
   private resizeObserver: ResizeObserver | null = null;
   private pendingRenderFrame: number | null = null;
+  private hoveredItem: BarChartItem | null = null;
 
   ngAfterViewInit(): void {
     this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
@@ -77,6 +85,12 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   ngOnChanges(changes: SimpleChanges): void {
     if (this.hostRef && (changes['items'] || changes['selectedIds'] || changes['dimmedIds'] || changes['orientation'])) {
       this.scheduleRender();
+    }
+    if (
+      this.staticInfoPanel &&
+      (changes['items'] || changes['total'] || changes['unit'] || changes['datasetTitle'] || changes['datasetCategory'])
+    ) {
+      this.refreshInfoPanel();
     }
   }
 
@@ -130,7 +144,7 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const chartHeight = isHorizontal
       ? Math.max(hostSize.height, this.items.length * rowHeight + 48)
       : viewportHeight;
-    const verticalBottomMargin = Math.max(44, Math.round(chartHeight * 0.14));
+    const verticalBottomMargin = Math.max(56, Math.round(chartHeight * 0.22));
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
       : { top: 8, right: 6, bottom: verticalBottomMargin, left: 32 };
@@ -195,14 +209,26 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       ): void => {
         selection
           .on('mouseenter', (event: MouseEvent, d: BarChartItem) => {
-            this.showTooltip(event, d, percentTotal);
+            if (this.staticInfoPanel) {
+              this.hoveredItem = d;
+              this.updateInfoPanel(d, percentTotal);
+            } else {
+              this.showTooltip(event, d, percentTotal);
+            }
           })
           .on('mousemove', (event: MouseEvent, d: BarChartItem) => {
-            this.showTooltip(event, d, percentTotal);
+            if (!this.staticInfoPanel) {
+              this.showTooltip(event, d, percentTotal);
+            }
           })
           .on('mouseleave', () => {
-            this.tooltipVisible = false;
-            this.cdr.markForCheck();
+            if (this.staticInfoPanel) {
+              this.hoveredItem = null;
+              this.refreshInfoPanel(percentTotal);
+            } else {
+              this.tooltipVisible = false;
+              this.cdr.markForCheck();
+            }
           })
           .on('click', (_event: MouseEvent, d: BarChartItem) => {
             this.barClick.emit(d);
@@ -224,18 +250,34 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
         .text(d => formatCompactThousands(d.value))
         .style('cursor', 'pointer')
         .on('mouseenter', (event: MouseEvent, d: BarChartItem) => {
-          this.showTooltip(event, d, percentTotal);
+          if (this.staticInfoPanel) {
+            this.hoveredItem = d;
+            this.updateInfoPanel(d, percentTotal);
+          } else {
+            this.showTooltip(event, d, percentTotal);
+          }
         })
         .on('mousemove', (event: MouseEvent, d: BarChartItem) => {
-          this.showTooltip(event, d, percentTotal);
+          if (!this.staticInfoPanel) {
+            this.showTooltip(event, d, percentTotal);
+          }
         })
         .on('mouseleave', () => {
-          this.tooltipVisible = false;
-          this.cdr.markForCheck();
+          if (this.staticInfoPanel) {
+            this.hoveredItem = null;
+            this.refreshInfoPanel(percentTotal);
+          } else {
+            this.tooltipVisible = false;
+            this.cdr.markForCheck();
+          }
         })
         .on('click', (_event: MouseEvent, d: BarChartItem) => {
           this.barClick.emit(d);
         });
+
+      if (this.staticInfoPanel) {
+        this.refreshInfoPanel(percentTotal);
+      }
     } else {
       const x = scaleBand<string>()
         .domain(this.items.map(d => d.id))
@@ -300,6 +342,48 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
 
       bindInteractions(bars);
     }
+  }
+
+  private refreshInfoPanel(percentTotal?: number): void {
+    const total = percentTotal ?? (this.total > 0 ? this.total : this.items.reduce((s, i) => s + i.value, 0));
+    if (this.hoveredItem) {
+      this.updateInfoPanel(this.hoveredItem, total);
+      return;
+    }
+    const sum = this.items.reduce((s, i) => s + i.value, 0);
+    const withData = this.items.filter(i => i.value > 0).length;
+    const top = [...this.items].sort((a, b) => b.value - a.value).find(i => i.value > 0);
+    const rows: { label: string; value: string }[] = [
+      { label: 'States / UTs', value: String(this.items.length) },
+      { label: 'With data', value: String(withData) }
+    ];
+    if (top) {
+      rows.push({ label: 'Top state', value: `${top.label} (${top.value.toLocaleString()})` });
+    }
+    this.infoPanelHtml = buildMetricTooltipHtml({
+      title: this.summaryTitle,
+      value: sum,
+      total,
+      unit: this.unit,
+      subtitle: 'Hover a state for detail',
+      datasetTitle: this.datasetTitle,
+      category: this.datasetCategory,
+      rows
+    });
+    this.cdr.markForCheck();
+  }
+
+  private updateInfoPanel(item: BarChartItem, percentTotal: number): void {
+    this.infoPanelHtml = buildMetricTooltipHtml({
+      title: item.label,
+      value: item.value,
+      total: percentTotal,
+      unit: this.unit,
+      subtitle: item.value <= 0 ? 'No records in current dataset' : undefined,
+      datasetTitle: this.datasetTitle,
+      category: this.datasetCategory
+    });
+    this.cdr.markForCheck();
   }
 
   private barFill(
