@@ -26,7 +26,31 @@ public class LiveDatasetRegistry {
                 LiveDatasetDefinition.cropProduction(),
                 LiveDatasetDefinition.healthFacilities(),
                 LiveDatasetDefinition.educationEnrollment(),
-                LiveDatasetDefinition.renewableEnergy()
+                LiveDatasetDefinition.renewableEnergy(),
+                // Tier 1 additions (state/UT snapshots)
+                LiveDatasetDefinition.crimeAgainstWomen(),
+                LiveDatasetDefinition.crimeAgainstScSt(),
+                LiveDatasetDefinition.dowryDeaths(),
+                LiveDatasetDefinition.civilCasesPending(),
+                LiveDatasetDefinition.prison(),
+                LiveDatasetDefinition.forestCover(),
+                LiveDatasetDefinition.forestChange(),
+                LiveDatasetDefinition.literacyHistorical(),
+                LiveDatasetDefinition.ruralLiteracy(),
+                LiveDatasetDefinition.secondaryGer(),
+                LiveDatasetDefinition.stStudentEnrolment(),
+                LiveDatasetDefinition.dengue(),
+                LiveDatasetDefinition.malaria(),
+                LiveDatasetDefinition.tbNotifications(),
+                LiveDatasetDefinition.infantMortality(),
+                LiveDatasetDefinition.maternalMortality(),
+                LiveDatasetDefinition.nrega(),
+                LiveDatasetDefinition.groundwater(),
+                LiveDatasetDefinition.railwayAccidents(),
+                LiveDatasetDefinition.householdsWithoutToilets(),
+                LiveDatasetDefinition.stPopulationShare(),
+                LiveDatasetDefinition.foreignTouristVisits(),
+                LiveDatasetDefinition.startupSeedFund()
         );
         Map<String, LiveDatasetDefinition> map = new LinkedHashMap<>();
         for (LiveDatasetDefinition def : datasets) {
