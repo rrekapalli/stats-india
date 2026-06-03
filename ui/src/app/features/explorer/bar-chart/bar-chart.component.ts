@@ -92,7 +92,8 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const chartHeight = isHorizontal
       ? Math.max(viewport.clientHeight, this.items.length * rowHeight + 48)
       : Math.max(viewport.clientHeight, 160);
-    const verticalBottomMargin = Math.max(4, Math.round(chartHeight * 0.05));
+    // At least ~30px for rotated x-axis labels; also honor ~5% on taller widgets.
+    const verticalBottomMargin = Math.max(30, Math.round(chartHeight * 0.05));
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
       : { top: 8, right: 8, bottom: verticalBottomMargin, left: 36 };
@@ -198,16 +199,19 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       const y = scaleLinear().domain([0, valueMax]).range([innerHeight, 0]).nice();
 
       g.append('g')
+        .attr('class', 'axis axis-x')
         .attr('transform', `translate(0,${innerHeight})`)
-        .call(axisBottom(x).tickSizeOuter(0).tickPadding(2).tickFormat(id => {
+        .call(axisBottom(x).tickSizeOuter(0).tickPadding(4).tickFormat(id => {
           const label = this.items.find(d => d.id === id)?.label ?? id;
-          const maxLen = verticalBottomMargin >= 14 ? 10 : 8;
-          return label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label;
+          return label.length > 12 ? `${label.slice(0, 11)}…` : label;
         }))
         .selectAll('text')
-        .attr('text-anchor', 'middle')
-        .attr('font-size', '8px')
-        .attr('dy', '0.35em');
+        .attr('transform', 'rotate(-35)')
+        .attr('text-anchor', 'end')
+        .attr('dx', '-0.3em')
+        .attr('dy', '0.35em')
+        .attr('font-size', '9px')
+        .attr('fill', '#475569');
 
       const bars = g
         .selectAll<SVGRectElement, BarChartItem>('rect.bar')
