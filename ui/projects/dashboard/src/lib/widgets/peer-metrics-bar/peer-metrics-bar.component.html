@@ -1,0 +1,42 @@
+<div class="peer-metrics-bar">
+  <div class="peer-metrics-loading" *ngIf="isLoading">
+    <span class="peer-metrics-spinner"></span>
+    <span>Loading peer metrics…</span>
+  </div>
+
+  <ng-container *ngIf="!isLoading">
+    <div class="peer-metrics-metrics" *ngIf="metricNames.length > 0">
+      <label
+        class="metric-radio"
+        *ngFor="let m of metricNames"
+        [class.metric-radio--active]="m === selectedMetricName">
+        <input
+          type="radio"
+          name="peer-metric"
+          [value]="m"
+          [checked]="m === selectedMetricName"
+          (change)="onMetricChange(m)" />
+        <span class="metric-radio-label">{{ m }}</span>
+      </label>
+    </div>
+
+    <div class="peer-metrics-peer-avg" *ngIf="peerAvgLegend && hasChart" [attr.title]="peerAvgLegend">
+      {{ peerAvgLegend }}
+    </div>
+
+    <div class="peer-metrics-chart-wrap" *ngIf="hasChart">
+      <div
+        echarts
+        [options]="chartOptions"
+        [merge]="chartBackgroundMerge"
+        [theme]="echartsTheme"
+        (chartInit)="onChartInit($event)"
+        (chartDblClick)="onChartDblClick($event)"
+        class="peer-metrics-echart"></div>
+    </div>
+
+    <div class="peer-metrics-empty" *ngIf="!hasChart">
+      {{ emptyMessage }}
+    </div>
+  </ng-container>
+</div>

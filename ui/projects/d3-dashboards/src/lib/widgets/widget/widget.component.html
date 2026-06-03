@@ -1,0 +1,42 @@
+<div class="widget-container">
+    <!-- Special handling for stock list table component to bind events properly -->
+    <!-- CRITICAL: Use getter to prevent component recreation on data updates -->
+    @if (isStockListTable) {
+        <app-stock-list-table 
+            [widget]="widget"
+            [stocks]="widget.data?.stocks || []"
+            [isLoadingStocks]="widget.data?.isLoadingStocks || false"
+            [selectedStockSymbol]="widget.data?.selectedStockSymbol || ''"
+            [showCurrencySymbol]="widget.data?.showCurrencySymbol ?? true"
+            (stockSelected)="onStockSelected.emit($event)"
+            (stockDoubleClicked)="onStockDoubleClicked.emit($event)">
+        </app-stock-list-table>
+    }
+
+    <!-- Price performance strip widget -->
+    @if (isPerformanceStrip) {
+        <app-price-performance-strip [widget]="widget">
+        </app-price-performance-strip>
+    }
+
+    @if (isPeerMetricsBar) {
+        <app-peer-metrics-bar [widget]="widget"></app-peer-metrics-bar>
+    }
+
+    @if (isD3Chart) {
+        <vis-d3-chart
+            [widget]="widget"
+            (filterUpdate)="onUpdateFilter.emit($event)"
+            (dataLoad)="onDataLoad.emit($event)" />
+    }
+
+    @if (isFilterWidget) {
+        <vis-filters [widget]="widget" (filterUpdate)="onUpdateFilter.emit($event)" />
+    }
+    
+    <!-- Default component outlet for other widget types -->
+    @if (!isStockListTable && !isPerformanceStrip && !isPeerMetricsBar && !isD3Chart && !isFilterWidget) {
+        <ng-container *ngComponentOutlet="currentWidget.component as any; inputs: currentWidget.inputs">
+        </ng-container>
+    }
+</div>

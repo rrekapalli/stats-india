@@ -1,0 +1,38 @@
+<div class="stock-tile-container" 
+     [style.background-color]="stockTileOptions.backgroundColor || stockTileOptions.color"
+     [style.opacity]="stockTileOptions.backgroundOpacity || 1">
+  <div class="stock-tile-content">
+    <!-- Symbol at top -->
+    <div class="stock-tile-symbol" [style.color]="stockTileOptions.color">
+      {{ stockTileOptions.description }}
+    </div>
+    
+    <!-- Main price and change section -->
+    <div class="stock-tile-main-section">
+      <div class="stock-tile-price-line">
+        <div class="stock-tile-price" [style.color]="stockTileOptions.color">
+          {{ stockTileOptions.value }}
+        </div>
+        <div class="stock-tile-change" [class]="'change-' + stockTileOptions.changeType" [style.color]="stockTileOptions.color">
+          {{ stockTileOptions.change }}
+        </div>
+      </div>
+    </div>
+    
+    <!-- High/Low section at bottom -->
+    <div class="stock-tile-high-low-section">
+      <div class="stock-tile-high">
+        <span class="stock-tile-high-label">High:</span>
+        <span class="stock-tile-high-value" [style.color]="stockTileOptions.color">
+          {{ stockTileOptions.highValue || '0' }}
+        </span>
+      </div>
+      <div class="stock-tile-low">
+        <span class="stock-tile-low-label">Low:</span>
+        <span class="stock-tile-low-value" [style.color]="stockTileOptions.color">
+          {{ stockTileOptions.lowValue || '0' }}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>

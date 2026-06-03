@@ -1,0 +1,22 @@
+<div class="dashboard-header">
+  <div class="dashboard-header-left">
+    <h2 class="dashboard-title" *ngIf="!showInstrumentFilters">{{ title }}</h2>
+    
+    <!-- Instrument Filters Section - Index label and dropdown in single row -->
+    <div *ngIf="showInstrumentFilters" class="instrument-filters">
+      <div class="filter-group inline-filter">
+        <label class="filter-label">Index:</label>
+        <p-select 
+          [options]="filterOptions.indices" 
+          [(ngModel)]="selectedFilters.index"
+          (onChange)="onIndexChange($event.value)"
+          [loading]="isLoadingFilters"
+          placeholder="Select Index"
+          [style]="{'width': '200px', 'margin-left': '8px'}">
+        </p-select>
+      </div>
+    </div>
+  </div>
+</div>
+
+ 

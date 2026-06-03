@@ -1,0 +1,36 @@
+.app-header {
+  flex-shrink: 0;
+  z-index: 1100;
+  height: var(--si-shell-header-height, 3rem);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.08);
+}
+
+.header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
+  padding: 0 0.75rem;
+  background: var(--p-menubar-background, var(--p-surface-card));
+}
+
+.header-left,
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.app-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--p-primary-color, #1565c0);
+  white-space: nowrap;
+}
+
+:host ::ng-deep .p-menubar.menu-items {
+  border: none;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}

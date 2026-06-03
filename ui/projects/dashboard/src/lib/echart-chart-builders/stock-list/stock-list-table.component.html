@@ -1,0 +1,249 @@
+<div class="sl-root">
+<!-- Search (native clear via type=search, same pattern as Analytics evidence filter), optional Holdings -->
+<div class="search-section">
+  <label for="stock-search" class="sr-only">Search stocks</label>
+  <div class="search-controls">
+    <div class="search-input-wrapper">
+      <input
+        id="stock-search"
+        type="search"
+        pInputText
+        [(ngModel)]="searchText"
+        (ngModelChange)="onSearchChange()"
+        placeholder="Search..."
+        class="search-input"
+        autocomplete="off"
+        aria-label="Search stocks by name or symbol" />
+    </div>
+    <div class="holdings-filter" *ngIf="showHoldingsFilter">
+      <p-toggleswitch
+        inputId="stock-list-holdings"
+        [ngModel]="holdingsFilterEnabled"
+        (ngModelChange)="onHoldingsFilterChange($event)"></p-toggleswitch>
+      <label class="holdings-filter-label" for="stock-list-holdings">Show Holdings</label>
+      <i
+        *ngIf="holdingsSymbolsLoading"
+        class="pi pi-spin pi-spinner holdings-filter-loading"
+        aria-hidden="true"></i>
+    </div>
+  </div>
+</div>
+
+<!-- Summary tiles: total, advances, declines, unchanged (below search) -->
+<div class="summary-tiles" *ngIf="footerStats.totalCount > 0">
+  <div class="metric-card">
+    <span class="metric-icon count">#</span>
+    <div class="metric-value-stack">
+      <span class="metric-value">{{ footerStats.totalCount }}</span>
+      <span class="metric-label-below">Total</span>
+    </div>
+  </div>
+  <div class="metric-card">
+    <span class="metric-icon positive">↑</span>
+    <div class="metric-value-stack">
+      <span class="metric-value positive">{{ footerStats.positiveCount }}</span>
+      <span class="metric-pct-below">({{ totalPct(footerStats.positiveCount) }}%)</span>
+    </div>
+  </div>
+  <div class="metric-card">
+    <span class="metric-icon negative">↓</span>
+    <div class="metric-value-stack">
+      <span class="metric-value negative">{{ footerStats.negativeCount }}</span>
+      <span class="metric-pct-below">({{ totalPct(footerStats.negativeCount) }}%)</span>
+    </div>
+  </div>
+  <div class="metric-card">
+    <span class="metric-icon neutral">−</span>
+    <div class="metric-value-stack">
+      <span class="metric-value neutral">{{ footerStats.noChangeCount }}</span>
+      <span class="metric-pct-below">({{ totalPct(footerStats.noChangeCount) }}%)</span>
+    </div>
+  </div>
+</div>
+
+<!-- Loading indicator (client-side or filtered POST list) -->
+<div *ngIf="!useAgGrid && displayTableLoading" class="loading-container sl-loading">
+  <div class="loading-content">
+    <i class="pi pi-spin pi-spinner text-4xl text-primary"></i>
+    <span class="text-lg text-600 mt-3">Loading instruments...</span>
+  </div>
+</div>
+
+<!-- ag-grid: server-side infinite scroll via POST /v1/instruments/filtered -->
+<div class="ag-grid-stock-list-wrap" *ngIf="useAgGrid">
+  <ag-grid-angular
+    class="ag-theme-quartz ag-theme-quartz-compact ag-stock-list-grid"
+    [theme]="'legacy'"
+    [style.width]="'100%'"
+    [style.height]="tableScrollHeight"
+    [columnDefs]="stockListColumnDefs"
+    [defaultColDef]="stockListDefaultColDef"
+    [rowModelType]="'infinite'"
+    [cacheBlockSize]="100"
+    [cacheOverflowSize]="2"
+    [maxConcurrentDatasourceRequests]="1"
+    [infiniteInitialRowCount]="100"
+    [maxBlocksInCache]="10"
+    [getRowId]="getRowId"
+    [rowClassRules]="stockListRowClassRules"
+    [animateRows]="true"
+    (gridReady)="onAgGridReady($event)"
+    (bodyScroll)="onAgGridBodyScroll()"
+    (sortChanged)="onAgSortChanged()">
+  </ag-grid-angular>
+</div>
+
+<!-- Table Container (scrollable; flex: 1) — client-side list -->
+<div class="table-container table-container--flex" *ngIf="!useAgGrid && !displayTableLoading">
+  <!-- Main stock table -->
+  <!-- CRITICAL: PrimeNG tracks rows by object reference, so stable identifiers in data ensure event bindings persist -->
+  <p-table
+              [value]="filteredStocks"
+              dataKey="id"
+              [globalFilterFields]="['symbol', 'companyName', 'industry', 'sector']"
+              [scrollable]="true"
+              scrollHeight="flex"
+              styleClass="p-datatable-sm"
+              [rowHover]="true">
+
+          <ng-template pTemplate="header">
+              <tr>
+                  <th pSortableColumn="symbol" style="min-width: 100px">
+                      Symbol
+                      <p-sortIcon field="symbol"></p-sortIcon>
+                  </th>
+                  <th pSortableColumn="lastPrice" style="min-width: 85px" class="text-right">
+                      Last Price
+                      <p-sortIcon field="lastPrice"></p-sortIcon>
+                  </th>
+                  <th pSortableColumn="priceChange" style="min-width: 70px" class="text-right">
+                      Change
+                      <p-sortIcon field="priceChange"></p-sortIcon>
+                  </th>
+                  <th pSortableColumn="percentChange" style="min-width: 70px" class="text-right">
+                      Change %
+                      <p-sortIcon field="percentChange"></p-sortIcon>
+                  </th>
+              </tr>
+          </ng-template>
+
+          <ng-template pTemplate="body" let-stock>
+              <tr class="stock-row cursor-pointer"
+                  [class.selected-stock]="(stock.symbol || stock.tradingsymbol) === selectedStockSymbol"
+                  (dblclick)="onRowDoubleClick(stock); $event.stopPropagation()">
+                  <td (click)="onStockListRowActivate(stock, $event)">
+                      <a *ngIf="symbolDeepLinkEnabled"
+                         class="stock-symbol sl-symbol-link"
+                         [routerLink]="symbolDeepLinkLinkCommands(stock)"
+                         (click)="$event.stopPropagation()">{{ stock.symbol }}</a>
+                      <span *ngIf="!symbolDeepLinkEnabled" class="stock-symbol" title="Click to view chart">{{ stock.symbol }}</span>
+                  </td>
+                  <td class="text-right" (click)="onStockListRowActivate(stock, $event)">
+                      <span class="stock-price-bold">{{ showCurrencySymbol ? '₹' : '' }}{{ stock.lastPrice | number:'1.2-2' }}</span>
+                  </td>
+                  <td class="text-right" (click)="onStockListRowActivate(stock, $event)">
+                      <span [ngClass]="{
+                        'text-green-500': stock.priceChange >= 0,
+                        'text-red-500': stock.priceChange < 0
+                      }">
+                        {{ stock.priceChange >= 0 ? '+' : '' }}{{ showCurrencySymbol ? '₹' : '' }}{{ stock.priceChange | number:'1.2-2' }}
+                      </span>
+                  </td>
+                  <td class="text-right" (click)="onStockListRowActivate(stock, $event)">
+                      <span class="stock-change-percent-bold" [ngClass]="{
+                        'text-green-500': stock.percentChange >= 0,
+                        'text-red-500': stock.percentChange < 0
+                      }">
+                        {{ stock.percentChange >= 0 ? '+' : '' }}{{ stock.percentChange | number:'1.2-2' }}%
+                      </span>
+                  </td>
+              </tr>
+          </ng-template>
+
+          <ng-template pTemplate="emptymessage">
+              <tr>
+                  <td colspan="4" class="text-center p-4">
+                      <div class="flex flex-column align-items-center gap-3">
+                          <i class="pi pi-filter-slash text-4xl text-400"></i>
+                          <span class="text-lg text-600">No instruments match the selected filters</span>
+                          <p class="text-sm text-500 mt-2">Try adjusting your filter criteria</p>
+                      </div>
+                  </td>
+              </tr>
+          </ng-template>
+
+          <ng-template pTemplate="footer">
+              <tr class="stock-list-tfoot-row">
+                  <td class="stock-list-footer-cell">
+                      <span class="footer-count">{{ filteredStocks.length }} item{{ filteredStocks.length !== 1 ? 's' : '' }}</span>
+                  </td>
+                  <td class="stock-list-footer-cell text-right"></td>
+                  <td class="stock-list-footer-cell text-right">
+                      <div class="footer-avg" *ngIf="footerAvgAbsChange != null">
+                          <span class="footer-avg-label">Avg(abs(Change))</span>
+                          <span class="footer-avg-value">{{ showCurrencySymbol ? '₹' : '' }}{{ footerAvgAbsChange | number:'1.2-2' }}</span>
+                      </div>
+                  </td>
+                  <td class="stock-list-footer-cell text-right">
+                      <div class="footer-avg" *ngIf="footerAvgAbsPercentChange != null">
+                          <span class="footer-avg-label">Avg(abs(Change %))</span>
+                          <span class="footer-avg-value">{{ footerAvgAbsPercentChange | number:'1.2-2' }}%</span>
+                      </div>
+                  </td>
+              </tr>
+          </ng-template>
+  </p-table>
+</div>
+<!-- end client-side table -->
+
+<!-- Tooltip Template -->
+<ng-template #stockTooltipTemplate>
+    <div class="stock-tooltip-content">
+        <div class="tooltip-header" *ngIf="hoveredStock?.companyName">
+            {{hoveredStock?.companyName}}
+        </div>
+        
+        <div class="tooltip-industry-sector" *ngIf="hoveredStock?.industry || hoveredStock?.sector">
+            <span class="industry" *ngIf="hoveredStock?.industry">Industry: <strong>{{hoveredStock?.industry}}</strong></span>
+            <span class="sector" *ngIf="hoveredStock?.sector">Sector: <strong>{{hoveredStock?.sector}}</strong></span>
+        </div>
+        
+        <div class="tooltip-separator" *ngIf="(hoveredStock?.industry || hoveredStock?.sector) && hasNumericalData(hoveredStock)"></div>
+        
+        <div class="tooltip-data-section" *ngIf="hasNumericalData(hoveredStock)">
+            <!-- Row 1: Open and Previous Close -->
+            <div class="tooltip-data-row" *ngIf="hoveredStock?.openPrice || hoveredStock?.previousClose">
+                <div class="data-item" *ngIf="hoveredStock?.openPrice">
+                    <span class="label">Open:</span>
+                    <span class="value">{{ showCurrencySymbol ? '₹' : '' }}{{hoveredStock?.openPrice | number:'1.2-2'}}</span>
+                </div>
+                <div class="data-item" *ngIf="hoveredStock?.previousClose">
+                    <span class="label">Prev Close:</span>
+                    <span class="value">{{ showCurrencySymbol ? '₹' : '' }}{{hoveredStock?.previousClose | number:'1.2-2'}}</span>
+                </div>
+            </div>
+            
+            <!-- Row 2: Day High and Day Low -->
+            <div class="tooltip-data-row" *ngIf="hoveredStock?.dayHigh || hoveredStock?.dayLow">
+                <div class="data-item" *ngIf="hoveredStock?.dayHigh">
+                    <span class="label">Day High:</span>
+                    <span class="value">{{ showCurrencySymbol ? '₹' : '' }}{{hoveredStock?.dayHigh | number:'1.2-2'}}</span>
+                </div>
+                <div class="data-item" *ngIf="hoveredStock?.dayLow">
+                    <span class="label">Day Low:</span>
+                    <span class="value">{{ showCurrencySymbol ? '₹' : '' }}{{hoveredStock?.dayLow | number:'1.2-2'}}</span>
+                </div>
+            </div>
+            
+            <!-- Row 3: Volume -->
+            <div class="tooltip-data-row single-item" *ngIf="hoveredStock?.volume">
+                <div class="data-item">
+                    <span class="label">Volume:</span>
+                    <span class="value">{{hoveredStock?.volume | number}}</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</ng-template>
+
+</div>

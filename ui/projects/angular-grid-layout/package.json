@@ -1,0 +1,13 @@
+{
+  "name": "angular-grid-layout",
+  "version": "0.0.1",
+  "peerDependencies": {
+    "@angular/common": "^21.2.0",
+    "@angular/core": "^21.2.0"
+  },
+  "dependencies": {
+    "@katoid/angular-grid-layout": "^3.1.0",
+    "tslib": "^2.3.0"
+  },
+  "sideEffects": false
+}

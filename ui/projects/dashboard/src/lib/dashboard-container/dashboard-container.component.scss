@@ -1,0 +1,133 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  min-width: 0;
+  width: 100%;
+  align-self: stretch;
+}
+
+.vis-chart-container {
+  background-color: var(--p-surface-card, var(--surface-card));
+  min-height: 1000px;
+  width: 100%;
+}
+
+.ktd-dashboard-container {
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.editMode {
+  color: red;
+}
+
+.print-body {
+  width: 100%;
+}
+
+@media print {
+  #dashboard {
+    width: 95%;
+    overflow-y: visible !important;
+    position: relative;
+  }
+
+  @page {
+    size: landscape;
+  }
+}
+
+
+.vis-filter-component {
+  font-size: 0.8rem !important;
+  width: 100%;
+  height: 40px;
+}
+
+::ng-deep .p-dropdown-custom {
+  width: 100% !important;
+
+  &.p-dropdown .p-component {
+    width: 100% !important;
+  }
+}
+
+// :host ::ng-deep .p-dialog .p-dialog-content {
+//   padding: 1rem 1.5rem 1rem 1.5rem;
+// }
+
+// :host ::ng-deep .p-dialog .p-dialog-header,
+// :host ::ng-deep .p-dialog .p-dialog-footer {
+//   background: #f8f9fa;
+// }
+
+/* ktd-grid host: fill + clip; no own background — parent shell provides surface */
+.dashboard-ktd-grid {
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+/*
+ * One chrome ring per cell: 1px border on ktd-grid-item only.
+ * Avoid box-shadow (especially y-offset hairlines) — they read as white strips on dark theme.
+ */
+:host ::ng-deep ktd-grid-item {
+  border: 1px solid var(--mt-control-border, var(--p-surface-border)) !important;
+  border-radius: var(--mt-dashboard-widget-radius, 1px);
+  background-color: var(--mt-panel-bg, var(--p-surface-card));
+  box-shadow: none !important;
+  outline: none !important;
+  overflow: hidden;
+}
+
+/* Content layout inside items — do not override ktd-grid-item display (Katoid sets inline). */
+:host ::ng-deep ktd-grid-item .ktd-grid-item-body {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  background: var(--mt-panel-bg, var(--p-surface-card));
+  border: none !important;
+  border-radius: var(--mt-dashboard-widget-radius, 1px);
+  box-shadow: none !important;
+}
+
+:host ::ng-deep ktd-grid-item .ktd-grid-item-body > vis-widget-header {
+  flex-shrink: 0;
+}
+
+:host ::ng-deep ktd-grid-item .ktd-grid-item-body > vis-widget {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* Katoid injects .grid-item-resize-icon; hide when draggable/resizable are false (backup if DOM remains). */
+:host ::ng-deep ktd-grid-item .grid-item-resize-icon,
+:host ::ng-deep ktd-grid-item .ktd-grid-resize-handle {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+:host ::ng-deep .no-border .p-panel-content {
+  border: none !important;
+  background: transparent !important;
+}
+
+:host ::ng-deep {
+  .hide-panel-header {
+    .p-panel-header {
+      display: none !important;
+    }
+  }
+}

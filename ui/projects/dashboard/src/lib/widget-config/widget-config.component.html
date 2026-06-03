@@ -1,0 +1,23 @@
+<div id="panelId" style="height:100%; overflow-y: visible;">
+  <p-scrollPanel [style]="{ height: '85vh', width: '100%', 'overflow-x': 'hidden', 'overflow': 'auto' }">
+    <form [formGroup]="form" (ngSubmit)="onWidgetSave()">
+    </form>
+  </p-scrollPanel>
+
+  <div class="form-buttons">
+    <!-- Buttons in Footer -->
+    <div class="form-button">
+      <p-button [outlined]="true" type="button" label="Save" (click)="onWidgetSave()"></p-button>
+    </div>
+    <div class="form-button">
+      <p-button [outlined]="true" type="button" label="Edit" class="ui-button-warning ml-2 mr-2"></p-button>
+    </div>
+    <div class="form-button">
+      <p-button [outlined]="true" type="reset" label="Reset" class="ui-button-danger"></p-button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Toast Message -->
+<p-toast position="bottom-right" key="br" />

@@ -1,0 +1,27 @@
+<div class="d3-range-brush__row" [class.d3-range-brush__row--disabled]="disabled">
+  <input
+    type="text"
+    class="d3-range-brush__input d3-range-brush__input--min"
+    [disabled]="disabled"
+    [(ngModel)]="minInput"
+    (blur)="onMinInputBlur()"
+    (keydown)="onMinInputEnter($event)"
+    [attr.aria-label]="'Minimum value'" />
+  <div class="d3-range-brush__plot" #plot>
+    <canvas
+      #canvas
+      class="d3-range-brush__canvas"
+      [class.d3-range-brush__canvas--disabled]="disabled"
+      (pointerdown)="onCanvasPointerDown($event)"
+      aria-hidden="true"
+      tabindex="-1"></canvas>
+  </div>
+  <input
+    type="text"
+    class="d3-range-brush__input d3-range-brush__input--max"
+    [disabled]="disabled"
+    [(ngModel)]="maxInput"
+    (blur)="onMaxInputBlur()"
+    (keydown)="onMaxInputEnter($event)"
+    [attr.aria-label]="'Maximum value'" />
+</div>

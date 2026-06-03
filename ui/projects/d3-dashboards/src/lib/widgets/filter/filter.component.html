@@ -1,0 +1,49 @@
+@if (filterValues && filterValues.length > 0) {
+  <div class="filter-component">
+    <span class="filter-label">Applied Filters</span>
+    <div class="filter-badges">
+      @for (item of filterValues; track item) {
+        <button class="btn-wide btn btn-outline-primary btn-sm chip"
+                (click)="clearFilter(item)"
+                [title]="'Remove ' + (item.filterColumn || item.accessor || item['widgetTitle']) + ' filter'">
+          <i class="pi pi-tag filter-badge-icon"></i>
+          @if (item.filterColumn || item.accessor) {
+            <span class="filter-key">{{ (item.filterColumn || item.accessor) | uppercase }}</span>
+            <span class="filter-separator">:</span>
+            <span class="filter-value">{{ item['value'] }}</span>
+          } @else if (item['widgetTitle']) {
+            <span class="filter-key">{{ item['widgetTitle'] }}</span>
+            <span class="filter-separator">:</span>
+            <span class="filter-value">{{ item['value'] }}</span>
+          } @else {
+            <span class="filter-key">{{ item.accessor | uppercase }}</span>
+            <span class="filter-separator">=</span>
+            <span class="filter-value">{{ item['value'] }}</span>
+          }
+          <i class="pi pi-times close-icon" title="Remove filter"></i>
+        </button>
+      }
+    </div>
+    <div class="filter-actions">
+      <button class="btn-wide btn btn-outline-warning btn-sm chip clear-all-btn" 
+        (click)="clearAllFilters(true)"
+        title="Clear all applied filters">
+        <i class="pi pi-trash"></i>
+        <span>Clear All</span>
+      </button>
+    </div>
+  </div>
+} @else {
+  <div class="filter-component empty-state">
+    <div class="empty-state-content">
+      <i class="pi pi-info-circle empty-state-icon"></i>
+      <div class="empty-state-text">
+        <p class="empty-state-title">No Filters Applied</p>
+        <p class="empty-state-description">
+          Click on any chart element to slice and dice data. You can use annotations to save a specific state of
+          dashboard after applying filters.
+        </p>
+      </div>
+    </div>
+  </div>
+}

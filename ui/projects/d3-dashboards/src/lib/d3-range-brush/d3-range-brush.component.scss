@@ -1,0 +1,71 @@
+:host {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  --d3-range-brush-input-width: 2.75rem;
+  --d3-range-brush-track: color-mix(in srgb, var(--p-text-muted-color, #64748b) 55%, transparent);
+  --d3-range-brush-fill: var(--p-primary-color, #6366f1);
+  --d3-range-brush-handle: var(--p-primary-color, #6366f1);
+}
+
+.d3-range-brush__row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.d3-range-brush__row--disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.d3-range-brush__input {
+  flex: 0 0 var(--d3-range-brush-input-width);
+  width: var(--d3-range-brush-input-width);
+  min-width: 0;
+  padding: 0.2rem 0.25rem;
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-align: center;
+  border: 1px solid var(--p-content-border-color, #e2e8f0);
+  border-radius: var(--p-border-radius-sm, 4px);
+  background: var(--p-surface-card, #fff);
+  color: var(--p-text-color, #0f172a);
+  box-sizing: border-box;
+
+  &:focus {
+    outline: 2px solid color-mix(in srgb, var(--p-primary-color, #6366f1) 45%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.d3-range-brush__plot {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 24px;
+  position: relative;
+}
+
+.d3-range-brush__canvas {
+  display: block;
+  width: 100%;
+  height: 24px;
+  cursor: default;
+  touch-action: none;
+  border-radius: 2px;
+
+  &:not(.d3-range-brush__canvas--disabled) {
+    cursor: grab;
+  }
+}
+
+.d3-range-brush__canvas:active {
+  cursor: grabbing;
+}

@@ -1,0 +1,19 @@
+<header class="app-header">
+  <div class="header-container">
+    <div class="header-left">
+      <span class="app-title">{{ title }}</span>
+      <p-menubar [model]="menuItems" styleClass="menu-items" [autoDisplay]="false" />
+    </div>
+    <div class="header-right">
+      @if (apiStatus() === 'up') {
+        <p-tag severity="success" value="API online" icon="pi pi-check-circle" />
+      } @else if (apiStatus() === 'down') {
+        <p-tag severity="danger" value="API offline" icon="pi pi-times-circle" />
+      } @else {
+        <p-tag severity="secondary" value="Checking API…" />
+      }
+      <a pButton label="data.gov.in" icon="pi pi-external-link" class="p-button-text p-button-sm"
+         href="https://data.gov.in" target="_blank" rel="noopener"></a>
+    </div>
+  </div>
+</header>

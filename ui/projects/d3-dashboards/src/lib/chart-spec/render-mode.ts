@@ -1,0 +1,26 @@
+export type ChartRenderMode = 'svg' | 'canvas';
+
+export const DEFAULT_RENDER_MODE: Record<string, ChartRenderMode> = {
+  bar: 'svg',
+  'horizontal-bar': 'svg',
+  'stacked-horizontal-bar': 'svg',
+  'stacked-vertical-bar': 'svg',
+  'negative-bar': 'svg',
+  waterfall: 'svg',
+  line: 'svg',
+  area: 'svg',
+  'stacked-area': 'svg',
+  scatter: 'svg',
+  pie: 'svg',
+  gauge: 'svg',
+  heatmap: 'canvas',
+  'density-map': 'canvas',
+  polar: 'svg',
+  treemap: 'svg',
+  sunburst: 'svg',
+  'zoomable-sunburst': 'svg',
+  'zoomable-icicle': 'svg',
+  sankey: 'svg',
+  candlestick: 'canvas',
+  'stock-list': 'canvas',
+};

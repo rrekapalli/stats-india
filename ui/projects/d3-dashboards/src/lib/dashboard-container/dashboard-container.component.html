@@ -1,0 +1,62 @@
+<div class="ktd-dashboard-container" #dashboardContainer>
+  <ktd-grid
+    class="dashboard-ktd-grid"
+    [cols]="mergedOptions.cols"
+    [rowHeight]="mergedOptions.rowHeight"
+    [gap]="mergedOptions.gap"
+    [layout]="ktdLayout"
+    [compactType]="mergedOptions.compactType"
+    [preventCollision]="mergedOptions.preventCollision"
+    [compactOnPropsChange]="mergedOptions.compactOnPropsChange"
+    [scrollableParent]="mergedOptions.scrollableParent ?? null"
+    [scrollSpeed]="mergedOptions.scrollSpeed ?? 2"
+    [height]="mergedOptions.height ?? null"
+    [backgroundConfig]="mergedOptions.backgroundConfig ?? null"
+    (layoutUpdated)="onKtdLayoutUpdated($event)"
+    (gridItemResize)="onKtdGridItemResize($event)"
+  >
+    <div id="dashboard" class="print-body">
+      @for (item of widgets; track item.id) {
+        <ktd-grid-item
+          [id]="item.id"
+          [draggable]="itemDraggable"
+          [resizable]="itemResizable"
+          [minW]="item.position.minItemCols"
+          [maxW]="item.position.maxItemCols"
+          [minH]="item.position.minItemRows"
+          [maxH]="item.position.maxItemRows"
+          [attr.data-widget-id]="item.id"
+        >
+          <div class="ktd-grid-item-body">
+            @if (item.config.header) {
+              <vis-widget-header
+                [dashboardId]="dashboardId"
+                [widget]="item"
+                [currentViewMode]="getWidgetViewMode(item.id)"
+                (onUpdateWidget)="onUpdateWidget($event)"
+                (onDeleteWidget)="onDeleteWidget($event)"
+                (onToggleViewMode)="onToggleViewMode($event)"
+                [onEditMode]="isEditMode"
+                [showSettingsMenu]="widgetHeaderShowSettings"
+                [treemapViewMode]="treemapViewMode"
+                [treemapLiveTicksAvailable]="treemapLiveTicksAvailable"
+                (treemapViewModeChange)="treemapViewModeChange.emit($event)"
+              />
+            }
+
+            <vis-d3-widget
+              [widget]="item"
+              [viewMode]="getWidgetViewMode(item.id)"
+              (onDataLoad)="handleDataLoad($event)"
+              (onUpdateFilter)="onUpdateFilter($event)"
+              (onStockSelected)="handleStockSelected($event)"
+              (onStockDoubleClicked)="handleStockDoubleClicked($event)"
+            />
+          </div>
+        </ktd-grid-item>
+      }
+    </div>
+  </ktd-grid>
+</div>
+
+<p-toast position="bottom-right" key="br" />

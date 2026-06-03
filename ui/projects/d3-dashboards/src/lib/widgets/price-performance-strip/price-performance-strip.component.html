@@ -1,0 +1,23 @@
+<div class="performance-strip" *ngIf="!isLoading && performanceData">
+  <div class="strip-inner">
+    <div
+      class="period-cell"
+      *ngFor="let period of performanceData.periods"
+      [title]="period.title + (period.pastPrice != null ? ' — Past: ' + period.pastPrice : '')"
+    >
+      <div class="period-label">{{ period.label }}</div>
+      <div class="period-value" [ngClass]="getChangeClass(period)">
+        {{ formatPercent(period.changePercent) }}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="strip-loading" *ngIf="isLoading">
+  <i class="pi pi-spin pi-spinner"></i>
+  <span>Loading performance data…</span>
+</div>
+
+<div class="strip-empty" *ngIf="!isLoading && !performanceData">
+  <span>No performance data</span>
+</div>

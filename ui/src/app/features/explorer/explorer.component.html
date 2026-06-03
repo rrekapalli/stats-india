@@ -1,0 +1,265 @@
+<div class="explorer-page">
+  <!-- Left nav rail (within content panel) -->
+  <nav class="nav-bar left-nav-bar" aria-label="Dataset navigation">
+    <ul class="nav-menu">
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeLeftDrawer === 'datasets'"
+                (click)="toggleLeftDrawer('datasets')" title="Browse datasets">
+          <i class="pi pi-database"></i>
+          <span class="btn-label">Datasets</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeLeftDrawer === 'categories'"
+                (click)="toggleLeftDrawer('categories')" title="Browse categories">
+          <i class="pi pi-tags"></i>
+          <span class="btn-label">Categories</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Right nav rail -->
+  <nav class="nav-bar right-nav-bar" aria-label="View options">
+    <ul class="nav-menu">
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeRightDrawer === 'filters'"
+                (click)="toggleRightDrawer('filters')" title="Filters">
+          <i class="pi pi-filter"></i>
+          <span class="btn-label">Filters</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeRightDrawer === 'map-settings'"
+                (click)="toggleRightDrawer('map-settings')" title="Map settings">
+          <i class="pi pi-map"></i>
+          <span class="btn-label">Map</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeRightDrawer === 'dataset-info'"
+                (click)="toggleRightDrawer('dataset-info')" title="Dataset details">
+          <i class="pi pi-info-circle"></i>
+          <span class="btn-label">Info</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+
+  <!-- Main two-column workspace -->
+  <div class="main-content"
+       [class.left-drawer-open]="activeLeftDrawer !== null"
+       [class.right-drawer-open]="activeRightDrawer !== null">
+    <div class="workspace-columns">
+      <aside class="left-column panel">
+        <div class="panel-header">
+          <h2>{{ isLiveDataset() ? 'Dataset breakdown' : 'Dimensions' }}</h2>
+          @if (selectedDataset) {
+            <p-tag [value]="selectedDataset.category" severity="info" />
+          }
+        </div>
+        @if (isLiveDataset() && liveTotalRecords) {
+          <p class="sample-note muted">
+            Sample of {{ liveSampleSize | number }} records (offset 0) from
+            {{ liveTotalRecords | number }} total on data.gov.in
+          </p>
+        }
+        <p-scrollPanel styleClass="dimension-scroll">
+          @if (loading && !dimensions.length) {
+            <p class="muted">Loading dataset…</p>
+          } @else {
+            <p-accordion [multiple]="true" [value]="accordionPanels">
+              @for (group of dimensions; track group.id) {
+                <p-accordion-panel [value]="group.id">
+                  <p-accordion-header>{{ group.label }}</p-accordion-header>
+                  <p-accordion-content>
+                    <ul class="dimension-list">
+                      @for (item of group.items; track item.id) {
+                        <li>
+                          <strong>{{ item.label }}</strong>
+                          <span>{{ item.description }}</span>
+                          <small>{{ item.valueType }}</small>
+                        </li>
+                      }
+                    </ul>
+                  </p-accordion-content>
+                </p-accordion-panel>
+              }
+            </p-accordion>
+          }
+        </p-scrollPanel>
+      </aside>
+
+      <section class="right-column panel">
+        <div class="panel-header">
+          <div>
+            <h2>{{ selectedDataset?.title ?? 'Explorer' }}</h2>
+            <p class="muted">{{ selectedDataset?.description }}</p>
+          </div>
+        </div>
+
+        <p-tabs [(value)]="activeTab" styleClass="explorer-tabs">
+          <p-tablist>
+            <p-tab value="visualization">Visualization</p-tab>
+            <p-tab value="data">Data</p-tab>
+          </p-tablist>
+          <p-tabpanels>
+            <p-tabpanel value="visualization">
+              <div class="viz-panel">
+                @if (loading) {
+                  <p class="muted center">Loading map data…</p>
+                } @else if (error) {
+                  <p class="error center">{{ error }}</p>
+                } @else {
+                  <app-india-state-map
+                    [metrics]="stateMetrics"
+                    [title]="isLiveDataset() ? 'Registered companies by state (sample)' : (selectedDataset?.title ?? 'India map')"
+                    [unit]="stateMetrics[0]?.unit ?? ''" />
+                }
+              </div>
+            </p-tabpanel>
+            <p-tabpanel value="data">
+              @if (isLiveDataset() && datasetRecords.length) {
+                <p-table [value]="datasetRecords" [paginator]="true" [rows]="15"
+                         styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
+                  <ng-template pTemplate="header">
+                    <tr>
+                      <th>Company</th>
+                      <th>State</th>
+                      <th>Status</th>
+                      <th>Industry</th>
+                      <th>Reg. date</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template pTemplate="body" let-row>
+                    <tr>
+                      <td>{{ row['companyName'] }}</td>
+                      <td>{{ row['companyStateCode'] }}</td>
+                      <td>{{ row['companyStatus'] }}</td>
+                      <td>{{ row['companyIndustrialClassification'] }}</td>
+                      <td>{{ row['registrationDate'] }}</td>
+                    </tr>
+                  </ng-template>
+                </p-table>
+              } @else {
+                <p-table [value]="stateMetrics" [paginator]="true" [rows]="12"
+                         styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
+                  <ng-template pTemplate="header">
+                    <tr>
+                      <th>State / UT</th>
+                      <th>Code</th>
+                      <th>Value</th>
+                      <th>Unit</th>
+                      <th>Year</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template pTemplate="body" let-row>
+                    <tr>
+                      <td>{{ row.state }}</td>
+                      <td>{{ row.stateCode }}</td>
+                      <td>{{ row.value | number:'1.0-2' }}</td>
+                      <td>{{ row.unit }}</td>
+                      <td>{{ row.year }}</td>
+                    </tr>
+                  </ng-template>
+                </p-table>
+              }
+            </p-tabpanel>
+          </p-tabpanels>
+        </p-tabs>
+      </section>
+    </div>
+  </div>
+
+  <!-- Left drawer -->
+  @if (activeLeftDrawer) {
+    <aside class="filter-drawer left-filter-drawer open" [attr.data-drawer]="activeLeftDrawer">
+      <div class="filter-drawer-header">
+        <h3>{{ activeLeftDrawer === 'datasets' ? 'Datasets' : 'Categories' }}</h3>
+        <button type="button" class="icon-close" (click)="closeDrawers()" aria-label="Close drawer">×</button>
+      </div>
+      <p-scrollPanel styleClass="drawer-scroll">
+        @if (activeLeftDrawer === 'datasets') {
+          <ul class="drawer-menu">
+            @for (dataset of datasets; track dataset.id) {
+              <li>
+                <button type="button" class="drawer-item"
+                        [class.active]="selectedDataset?.id === dataset.id"
+                        (click)="selectDataset(dataset)">
+                  <span class="drawer-item-title">{{ dataset.title }}</span>
+                  <span class="drawer-item-meta">{{ dataset.category }} · {{ dataset.updateFrequency }}</span>
+                </button>
+              </li>
+            }
+          </ul>
+        } @else {
+          @for (category of categories; track category) {
+            <div class="drawer-section">
+              <h4>{{ category }}</h4>
+              <ul class="drawer-menu compact">
+                @for (dataset of datasetsByCategory(category); track dataset.id) {
+                  <li>
+                    <button type="button" class="drawer-item"
+                            [class.active]="selectedDataset?.id === dataset.id"
+                            (click)="selectDataset(dataset)">
+                      {{ dataset.title }}
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          }
+        }
+      </p-scrollPanel>
+    </aside>
+  }
+
+  <!-- Right drawer -->
+  @if (activeRightDrawer) {
+    <aside class="filter-drawer right-filter-drawer open" [attr.data-drawer]="activeRightDrawer">
+      <div class="filter-drawer-header">
+        <h3>
+          @switch (activeRightDrawer) {
+            @case ('filters') { Filters }
+            @case ('map-settings') { Map settings }
+            @case ('dataset-info') { Dataset info }
+          }
+        </h3>
+        <button type="button" class="icon-close" (click)="closeDrawers()" aria-label="Close drawer">×</button>
+      </div>
+      <p-scrollPanel styleClass="drawer-scroll">
+        @switch (activeRightDrawer) {
+          @case ('filters') {
+            <div class="drawer-section">
+              <p class="muted">Filter by geography, time period, and sector using the dimension accordions on the left panel.</p>
+              <ul class="check-list">
+                <li><label><input type="checkbox" checked disabled /> All states & UTs</label></li>
+                <li><label><input type="checkbox" checked disabled /> Latest published year</label></li>
+              </ul>
+            </div>
+          }
+          @case ('map-settings') {
+            <div class="drawer-section">
+              <p class="muted">Pan and scroll to zoom the India map. Use the reset control on the map toolbar to restore the default view.</p>
+              <ul class="check-list">
+                <li>Choropleth scale: sequential blue</li>
+                <li>Interaction: click a state to highlight</li>
+                <li>Source geometry: SVG Maps India</li>
+              </ul>
+            </div>
+          }
+          @case ('dataset-info') {
+            @if (selectedDataset) {
+              <div class="drawer-section">
+                <p><strong>Source:</strong> {{ selectedDataset.source }}</p>
+                <p><strong>Update:</strong> {{ selectedDataset.updateFrequency }}</p>
+                <p>{{ selectedDataset.description }}</p>
+                <a [href]="selectedDataset.portalUrl" target="_blank" rel="noopener">View on data.gov.in</a>
+              </div>
+            }
+          }
+        }
+      </p-scrollPanel>
+    </aside>
+  }
+</div>

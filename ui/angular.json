@@ -1,7 +1,10 @@
 {
-  "$schema": "https://json.schemastore.org/angular-cli",
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
   "version": 1,
-  "defaultProject": "stats-india-ui",
+  "cli": {
+    "packageManager": "npm"
+  },
+  "newProjectRoot": "projects",
   "projects": {
     "stats-india-ui": {
       "projectType": "application",
@@ -10,31 +13,132 @@
       "prefix": "app",
       "architect": {
         "build": {
-          "builder": "@angular-devkit/build-angular:browser",
+          "builder": "@angular/build:application",
           "options": {
-            "outputPath": "../src/main/resources/static",
-            "index": "src/index.html",
-            "main": "src/main.ts",
-            "polyfills": [],
+            "browser": "src/main.ts",
             "tsConfig": "tsconfig.app.json",
+            "outputPath": {
+              "base": "../src/main/resources/static",
+              "browser": ""
+            },
             "assets": [
-              "src/favicon.ico",
-              "src/assets"
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
             ],
             "styles": [
               "src/styles.css"
             ],
-            "scripts": []
+            "allowedCommonJsDependencies": [
+              "xlsx"
+            ]
           },
           "configurations": {
             "production": {
-              "optimization": true,
-              "extractLicenses": true,
-              "sourceMap": false
+              "budgets": [
+                {
+                  "type": "initial",
+                  "maximumWarning": "1.5mb",
+                  "maximumError": "2mb"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "8kB",
+                  "maximumError": "12kB"
+                }
+              ],
+              "outputHashing": "all",
+              "serviceWorker": "ngsw-config.json"
             },
             "development": {
               "optimization": false,
+              "extractLicenses": false,
               "sourceMap": true
+            }
+          },
+          "defaultConfiguration": "production"
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "configurations": {
+            "production": {
+              "buildTarget": "stats-india-ui:build:production"
+            },
+            "development": {
+              "buildTarget": "stats-india-ui:build:development"
+            }
+          },
+          "defaultConfiguration": "development",
+          "options": {
+            "proxyConfig": "proxy.conf.json"
+          }
+        }
+      }
+    },
+    "angular-grid-layout": {
+      "projectType": "library",
+      "root": "projects/angular-grid-layout",
+      "sourceRoot": "projects/angular-grid-layout/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "options": {
+            "project": "projects/angular-grid-layout/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/angular-grid-layout/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/angular-grid-layout/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
+    },
+    "dashboard": {
+      "projectType": "library",
+      "root": "projects/dashboard",
+      "sourceRoot": "projects/dashboard/src",
+      "prefix": "lib",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "options": {
+            "project": "projects/dashboard/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/dashboard/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/dashboard/tsconfig.lib.json"
+            }
+          },
+          "defaultConfiguration": "production"
+        }
+      }
+    },
+    "d3-dashboards": {
+      "projectType": "library",
+      "root": "projects/d3-dashboards",
+      "sourceRoot": "projects/d3-dashboards/src",
+      "prefix": "d3",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:ng-packagr",
+          "options": {
+            "project": "projects/d3-dashboards/ng-package.json"
+          },
+          "configurations": {
+            "production": {
+              "tsConfig": "projects/d3-dashboards/tsconfig.lib.prod.json"
+            },
+            "development": {
+              "tsConfig": "projects/d3-dashboards/tsconfig.lib.json"
             }
           },
           "defaultConfiguration": "production"

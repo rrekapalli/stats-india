@@ -1,0 +1,83 @@
+<p-panel>
+  <ng-template pTemplate="header">
+    @if (onEditMode) {
+      <div
+        class="widget-header-content"
+        [class.widget-header-content--chart]="widget?.config?.component === 'echart'"
+        ktdGridDragHandle
+      >
+        <ng-container *ngTemplateOutlet="headerBody" />
+      </div>
+    } @else {
+      <div
+        class="widget-header-content"
+        [class.widget-header-content--chart]="widget?.config?.component === 'echart'"
+      >
+        <ng-container *ngTemplateOutlet="headerBody" />
+      </div>
+    }
+  </ng-template>
+</p-panel>
+
+<ng-template #headerBody>
+  <div class="widget-header-left">
+    @if (showSettingsMenu && widget.id !== 'treemap-widget') {
+      <p-button #menuButton
+                [outlined]="true"
+                class="p-button-sm"
+                type="button"
+                icon="pi pi-cog"
+                (click)="menu.toggle($event)">
+      </p-button>
+    }
+    @if (onEditMode) {
+      <p-button class="p-button-sm ml-2" type="button" (click)="onDeleteWidgetClicked($event)"
+                [outlined]="true"
+                icon="pi pi-trash"></p-button>
+
+      <p-button [outlined]="true" class="p-button-sm ml-2" type="button" (click)="sidebarVisible = true" [outlined]="true"
+                icon="pi pi-cog"></p-button>
+    }
+  </div>
+
+  <div class="widget-header-center">
+    <span class="widget-header-title">{{ title }}</span>
+  </div>
+
+  <div class="widget-header-right p-panel-header-icons">
+    @if (widget.id === 'treemap-widget' && treemapViewMode != null) {
+      <div class="treemap-view-mode-radios">
+        <label class="treemap-radio-label">
+          <input type="radio" name="treemapViewMode" [value]="'currentPrices'" [checked]="treemapViewMode === 'currentPrices'"
+            [disabled]="!treemapLiveTicksAvailable" (change)="onTreemapViewModeChange('currentPrices')">
+          <span>Current Prices</span>
+        </label>
+        <label class="treemap-radio-label">
+          <input type="radio" name="treemapViewMode" [value]="'marketCap'" [checked]="treemapViewMode === 'marketCap'"
+            (change)="onTreemapViewModeChange('marketCap')">
+          <span>Market Cap</span>
+        </label>
+      </div>
+    }
+  </div>
+</ng-template>
+
+<p-menu #menu
+        [model]="menuItems"
+        [popup]="true"
+        appendTo="body">
+</p-menu>
+
+<p-drawer [(visible)]="sidebarVisible" position="right" [modal]="false" [appendTo]="'body'" [style]="{
+      'width': '30%',
+      height: '100%',
+      padding: '0px',
+      'padding-right': '2px',
+    }">
+  <ng-template pTemplate="header">
+    <div class="font-bold ml-3 mb-3 text-lg">
+      {{ title }} Settings
+    </div>
+  </ng-template>
+  <vis-widget-config [selectedDashboardId]="dashboardId" [widget]="widget" (onUpdate)="onUpdateOptions($event)"/>
+</p-drawer>

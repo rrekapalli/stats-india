@@ -1,0 +1,164 @@
+.panel-button {
+  display: flex;
+  flex-direction: row;
+  justify-content: end;
+}
+
+:host ::ng-deep .p-panel {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+:host ::ng-deep .p-panel .p-panel-content,
+:host ::ng-deep .p-panel .p-panel-content-container {
+  display: none !important;
+}
+
+:host ::ng-deep .p-panel .p-panel-header {
+  padding: 0.5rem 0.75rem;
+  background: var(--mt-panel-bg, var(--p-surface-card)) !important;
+  color: var(--p-text-color) !important;
+  border: 1px solid var(--mt-control-border, var(--p-surface-border));
+  border-radius: var(--mt-dashboard-widget-radius, 0) var(--mt-dashboard-widget-radius, 0) 0 0;
+}
+
+/* Widget header layout */
+.widget-header-content {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+}
+
+.widget-header-content.widget-header-content--chart {
+  gap: 0;
+}
+
+.widget-header-left {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.widget-header-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.widget-header-title {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--p-text-color);
+}
+
+.widget-header-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+/* Widget Data Panel Styles */
+.widget-data-panel {
+  padding: 1rem;
+  max-height: 400px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.data-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--p-surface-border);
+}
+
+.data-header h3 {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.data-info {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--mt-form-muted);
+}
+
+.data-table-container {
+  flex: 1;
+  overflow: auto;
+  border: 1px solid var(--p-surface-border);
+  border-radius: 4px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.data-table th {
+  background-color: var(--mt-ag-header-bg);
+  color: var(--p-text-color);
+  padding: 0.5rem;
+  text-align: left;
+  font-weight: 600;
+  border-bottom: 1px solid var(--p-surface-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.data-table td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--p-surface-border);
+  word-break: break-word;
+  color: var(--p-text-color);
+}
+
+.data-table tr:hover {
+  background-color: var(--p-surface-hover, var(--surface-hover));
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: var(--mt-form-muted);
+  font-style: italic;
+}
+
+/* Menu button styling */
+:host ::ng-deep .p-button.p-button-sm {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+}
+
+.treemap-view-mode-radios {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: 0.875rem;
+}
+
+.treemap-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  user-select: none;
+  color: var(--p-text-color);
+}
+
+.treemap-radio-label:has(input:disabled) {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -1,0 +1,33 @@
+.form-buttons {
+  display: flex;
+  justify-content: end;
+  margin-top: 2rem;
+  padding: 1.2rem;
+  align-items: end;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+}
+
+
+::ng-deep .p-sidebar .p-sidebar-header .p-sidebar-close,
+.p-sidebar .p-sidebar-header .p-sidebar-icon button {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+  background: var(--p-surface-card, var(--surface-card));
+  position: absolute;
+  top: 0.625rem;
+  padding: 0.4166666667rem !important;
+  box-shadow: 0 0.125rem 0.25rem #00000014;
+  z-index: 20;
+  left: -39px;
+  height: 3rem;
+  width: 3.25rem;
+  color: red;
+}
+
+::ng-deep .form-alignment {
+  margin-left: 1rem;
+  margin-right: 1rem;
+  width: 86.2%;
+}

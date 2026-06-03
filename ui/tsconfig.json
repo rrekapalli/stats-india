@@ -2,12 +2,56 @@
   "compileOnSave": false,
   "compilerOptions": {
     "baseUrl": "./",
-    "outDir": "./dist/out-tsc",
-    "forceConsistentCasingInFileNames": true,
     "strict": true,
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true
-  }
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "dom"],
+    "paths": {
+      "angular-grid-layout": [
+        "./dist/angular-grid-layout",
+        "./projects/angular-grid-layout/src/public-api.ts"
+      ],
+      "@dashboard/public-api": [
+        "./dist/dashboard",
+        "./projects/dashboard/src/public-api.ts"
+      ],
+      "@d3-dashboards/public-api": [
+        "./dist/d3-dashboards",
+        "./projects/d3-dashboards/src/public-api.ts"
+      ]
+    }
+  },
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictInputAccessModifiers": true,
+    "strictTemplates": true
+  },
+  "files": [],
+  "references": [
+    {
+      "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./projects/angular-grid-layout/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/dashboard/tsconfig.lib.json"
+    },
+    {
+      "path": "./projects/d3-dashboards/tsconfig.lib.json"
+    }
+  ]
 }

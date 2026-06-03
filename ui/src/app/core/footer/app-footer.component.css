@@ -1,0 +1,51 @@
+.app-footer {
+  flex-shrink: 0;
+  z-index: 1000;
+  height: var(--si-shell-footer-height, 3rem);
+  padding: 0 1rem;
+  border-top: 1px solid var(--p-surface-border, #e2e8f0);
+  background: var(--p-menubar-background, var(--p-surface-card));
+  display: flex;
+  align-items: center;
+}
+
+.footer-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  gap: 1rem;
+  font-size: 0.75rem;
+}
+
+.footer-left,
+.footer-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.footer-separator {
+  width: 1px;
+  height: 1.25rem;
+  background: var(--p-surface-border, #cbd5e1);
+}
+
+.strip-label {
+  color: var(--p-text-muted-color, #64748b);
+  font-weight: 500;
+}
+
+.strip-value {
+  color: var(--p-text-color, #0f172a);
+}
+
+.footer-right a {
+  color: var(--p-primary-color, #1565c0);
+  text-decoration: none;
+}
+
+.footer-right a:hover {
+  text-decoration: underline;
+}

@@ -1,0 +1,30 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../out-tsc/lib",
+    "declaration": true,
+    "declarationMap": true,
+    "inlineSources": true,
+    "types": ["node"],
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "moduleResolution": "bundler",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "noPropertyAccessFromIndexSignature": false,
+    "strict": false,
+    "strictNullChecks": false,
+    "isolatedModules": false
+  },
+  "exclude": [
+    "**/*.spec.ts",
+    "**/*.cy.ts",
+    "**/usage-examples/**",
+    "**/stock-list-examples.ts"
+  ],
+  "angularCompilerOptions": {
+    "strictTemplates": true,
+    "strictInjectionParameters": false,
+    "strictInputAccessModifiers": false
+  }
+}

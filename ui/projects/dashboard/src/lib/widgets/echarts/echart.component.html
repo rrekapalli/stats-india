@@ -1,0 +1,10 @@
+<div
+  echarts
+  [options]="chartOptions"
+  [theme]="echartsTheme"
+  (chartInit)="onChartInit($event)"
+  (chartClick)="onClick($event)"
+  (chartDblClick)="onChartDblClick($event)"
+  style="height: 100%; width: 100%;"
+  #chart
+></div>
