@@ -27,6 +27,13 @@ import {
   formatMetricPercent,
   sumValues
 } from '../../shared/stats-metric-tooltip.util';
+import {
+  chartableDimensionGroups,
+  dimensionGroupTotal,
+  dimensionToBarItems,
+  dimensionToPieItems,
+  resolveDimensionChartSlots
+} from './dimension-chart-layout';
 
 type LeftDrawer = 'datasets' | 'categories' | null;
 type RightDrawer = 'dimensions' | 'filters' | 'map-settings' | 'dataset-info' | null;
@@ -80,7 +87,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   activeLeftDrawer: LeftDrawer = null;
   activeRightDrawer: RightDrawer = null;
   activeTab = 'visualization';
-  accordionPanels: string[] = ['summary', 'company-status', 'state'];
+  accordionPanels: string[] = ['summary'];
 
   loading = true;
   dataLoading = false;
@@ -219,7 +226,8 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.recordsCached = data.recordsCached;
     this.syncStatus = data.syncStatus;
     this.cachedAt = data.cachedAt;
-    this.accordionPanels = data.dimensionGroups.map(g => g.id).slice(0, 4);
+    const chartable = chartableDimensionGroups(data.dimensionGroups);
+    this.accordionPanels = ['summary', ...chartable.map(g => g.id).slice(0, 4)];
   }
 
   isLiveDataset(): boolean {
@@ -289,52 +297,62 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     return this.dimensions.find(g => g.id === id);
   }
 
-  statusBreakdown(): { label: string; count: number }[] {
-    const group = this.dimensionGroup('company-status');
-    if (!group) {
+  pieDimensionGroup(): DimensionGroup | null {
+    return resolveDimensionChartSlots(this.dimensions).pie;
+  }
+
+  barDimensionGroup(): DimensionGroup | null {
+    return resolveDimensionChartSlots(this.dimensions).bar;
+  }
+
+  pieChartItems(): PieChartItem[] {
+    const group = this.pieDimensionGroup();
+    return group ? dimensionToPieItems(group) : [];
+  }
+
+  barChartItems(): BarChartItem[] {
+    const group = this.barDimensionGroup();
+    return group ? dimensionToBarItems(group) : [];
+  }
+
+  pieChartTotal(): number {
+    const group = this.pieDimensionGroup();
+    return group ? dimensionGroupTotal(group) : 0;
+  }
+
+  barChartTotal(): number {
+    const group = this.barDimensionGroup();
+    return group ? dimensionGroupTotal(group) : 0;
+  }
+
+  dimensionBarSelectedIds(dimensionId: string): string[] {
+    return this.crossFilter.selectedDimensionValues(dimensionId);
+  }
+
+  dimensionBarDimmedIds(dimensionId: string): string[] {
+    if (!this.crossFilter.active || !this.crossFilter.selectedDimensionValues(dimensionId).length) {
       return [];
     }
-    return group.items
-      .map(item => ({
-        label: item.label,
-        count: Number.parseInt(item.valueType, 10) || 0
-      }))
-      .filter(item => item.count > 0)
-      .sort((a, b) => b.count - a.count);
+    return this.barChartItems()
+      .filter(item => this.crossFilter.isDimensionDimmed(dimensionId, item.id))
+      .map(item => item.id);
   }
 
-  statusBarItems(): BarChartItem[] {
-    return this.statusBreakdown().map(row => ({
-      id: row.label,
-      label: row.label,
-      value: row.count
-    }));
+  onDimensionBarClick(dimensionId: string, item: BarChartItem): void {
+    this.crossFilter.toggleDimension(dimensionId, item.label);
+    this.cdr.markForCheck();
   }
 
-  categoryBreakdown(): { label: string; count: number }[] {
-    const group = this.dimensionGroup('category');
-    if (!group) {
-      return [];
+  crossFilterSummary(): string {
+    const parts: string[] = [];
+    if (this.crossFilter.states.size) {
+      parts.push(`State: ${[...this.crossFilter.states].join(', ')}`);
     }
-    return group.items
-      .map(item => ({
-        label: item.label,
-        count: Number.parseInt(item.valueType, 10) || 0
-      }))
-      .filter(item => item.count > 0)
-      .sort((a, b) => b.count - a.count);
-  }
-
-  categoryPieItems(): PieChartItem[] {
-    return this.categoryBreakdown().map(row => ({
-      id: row.label,
-      label: row.label,
-      value: row.count
-    }));
-  }
-
-  categoryPieTotal(): number {
-    return this.dimensionGroupTotal('category') || this.statusTotal();
+    for (const { dimensionId, values } of this.crossFilter.activeDimensionFilters()) {
+      const label = this.dimensionGroup(dimensionId)?.label ?? dimensionId;
+      parts.push(`${label}: ${values.join(', ')}`);
+    }
+    return parts.join(' · ');
   }
 
   allStateBarItems(): BarChartItem[] {
@@ -355,23 +373,6 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     return this.crossFilter.states.size ? [...this.crossFilter.states][0] : null;
   }
 
-  crossFilterSelectedStatus(): string | null {
-    return this.crossFilter.statuses.size ? [...this.crossFilter.statuses][0] : null;
-  }
-
-  statusBarSelectedIds(): string[] {
-    return [...this.crossFilter.statuses];
-  }
-
-  statusBarDimmedIds(): string[] {
-    if (!this.crossFilter.active || this.crossFilter.statuses.size === 0) {
-      return [];
-    }
-    return this.statusBarItems()
-      .filter(item => !this.crossFilter.isStatusSelected(item.id))
-      .map(item => item.id);
-  }
-
   stateBarSelectedIds(): string[] {
     return [...this.crossFilter.states];
   }
@@ -387,11 +388,6 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   onMapStateClick(stateName: string): void {
     this.crossFilter.toggleState(stateName);
-    this.cdr.markForCheck();
-  }
-
-  onStatusBarClick(item: BarChartItem): void {
-    this.crossFilter.toggleStatus(item.label);
     this.cdr.markForCheck();
   }
 
@@ -532,7 +528,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   statusTotal(): number {
-    return sumValues(this.statusBreakdown().map(s => s.count));
+    return this.barChartTotal();
   }
 
   mapTotalForPercent(): number {
@@ -545,12 +541,9 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     return this.stateMetricsTotal();
   }
 
-  dimensionGroupTotal(groupId: string): number {
+  dimensionGroupTotalById(groupId: string): number {
     const group = this.dimensionGroup(groupId);
-    if (!group) {
-      return 0;
-    }
-    return sumValues(group.items.map(item => Number.parseInt(item.valueType, 10) || 0));
+    return group ? dimensionGroupTotal(group) : 0;
   }
 
   datasetTitleLabel(): string {
@@ -587,12 +580,13 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   statusRowTooltip(row: { label: string; count: number }): string {
+    const barGroup = this.barDimensionGroup();
     return buildMetricTooltipHtml({
       title: row.label,
       value: row.count,
-      total: this.statusTotal(),
+      total: this.barChartTotal(),
       unit: this.stateMetrics[0]?.unit ?? 'records',
-      subtitle: 'Breakdown by company status',
+      subtitle: barGroup ? `Breakdown by ${barGroup.label.toLowerCase()}` : undefined,
       datasetTitle: this.datasetTitleLabel(),
       category: this.datasetCategoryLabel()
     });
@@ -600,7 +594,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   dimensionItemTooltip(item: DimensionItem, groupId: string): string {
     const count = Number.parseInt(item.valueType, 10);
-    const total = this.dimensionGroupTotal(groupId);
+    const total = this.dimensionGroupTotalById(groupId);
     if (Number.isFinite(count) && count > 0 && total > 0) {
       return buildMetricTooltipHtml({
         title: item.label,

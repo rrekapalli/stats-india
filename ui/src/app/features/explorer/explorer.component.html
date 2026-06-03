@@ -85,7 +85,7 @@
             }
             @if (crossFilter.active) {
               <div class="crossfilter-banner">
-                <span>Filtered: {{ crossFilter.summary() }}</span>
+                <span>Filtered: {{ crossFilterSummary() }}</span>
                 <button type="button" class="crossfilter-clear" (click)="clearCrossFilters()">Clear</button>
               </div>
             }
@@ -124,45 +124,49 @@
                     (stateClick)="onMapStateClick($event)" />
                 </article>
 
-                <article class="dashboard-widget widget-category">
-                  <header class="widget-header">Company category</header>
-                  <div class="widget-body widget-chart-body">
-                    @if (categoryPieItems().length) {
-                      <app-pie-chart
-                        [items]="categoryPieItems()"
-                        [unit]="stateMetrics[0]?.unit ?? 'records'"
-                        [total]="categoryPieTotal()"
-                        summaryTitle="All categories"
-                        [datasetTitle]="datasetTitleLabel()"
-                        [datasetCategory]="datasetCategoryLabel()" />
-                    } @else {
-                      <p class="muted widget-empty">No category breakdown for this dataset.</p>
-                    }
-                  </div>
-                </article>
+                @if (pieDimensionGroup(); as pieGroup) {
+                  <article class="dashboard-widget widget-category">
+                    <header class="widget-header">{{ pieGroup.label }}</header>
+                    <div class="widget-body widget-chart-body">
+                      @if (pieChartItems().length) {
+                        <app-pie-chart
+                          [items]="pieChartItems()"
+                          [unit]="stateMetrics[0]?.unit ?? 'records'"
+                          [total]="pieChartTotal()"
+                          [summaryTitle]="'All ' + pieGroup.label.toLowerCase()"
+                          [datasetTitle]="datasetTitleLabel()"
+                          [datasetCategory]="datasetCategoryLabel()" />
+                      } @else {
+                        <p class="muted widget-empty">No breakdown available for {{ pieGroup.label.toLowerCase() }}.</p>
+                      }
+                    </div>
+                  </article>
+                }
 
-                <article class="dashboard-widget widget-status">
-                  <header class="widget-header">Company status</header>
-                  <div class="widget-body widget-chart-body">
-                    @if (statusBarItems().length) {
-                      <app-bar-chart
-                        orientation="vertical"
-                        [staticInfoPanel]="true"
-                        infoPanelAnchor="top-right"
-                        summaryTitle="All statuses"
-                        [items]="statusBarItems()"
-                        [selectedIds]="statusBarSelectedIds()"
-                        [dimmedIds]="statusBarDimmedIds()"
-                        [unit]="stateMetrics[0]?.unit ?? 'records'"
-                        [total]="statusTotal()"
-                        [datasetTitle]="datasetTitleLabel()"
-                        [datasetCategory]="datasetCategoryLabel()"
-                        (barClick)="onStatusBarClick($event)" />
-                    } @else {
-                      <p class="muted widget-empty">No status breakdown for this dataset.</p>
-                    }
-                  </div>
-                </article>
+                @if (barDimensionGroup(); as barGroup) {
+                  <article class="dashboard-widget widget-status">
+                    <header class="widget-header">{{ barGroup.label }}</header>
+                    <div class="widget-body widget-chart-body">
+                      @if (barChartItems().length) {
+                        <app-bar-chart
+                          orientation="vertical"
+                          [staticInfoPanel]="true"
+                          infoPanelAnchor="top-right"
+                          [summaryTitle]="'All ' + barGroup.label.toLowerCase()"
+                          [items]="barChartItems()"
+                          [selectedIds]="dimensionBarSelectedIds(barGroup.id)"
+                          [dimmedIds]="dimensionBarDimmedIds(barGroup.id)"
+                          [unit]="stateMetrics[0]?.unit ?? 'records'"
+                          [total]="barChartTotal()"
+                          [datasetTitle]="datasetTitleLabel()"
+                          [datasetCategory]="datasetCategoryLabel()"
+                          (barClick)="onDimensionBarClick(barGroup.id, $event)" />
+                      } @else {
+                        <p class="muted widget-empty">No breakdown available for {{ barGroup.label.toLowerCase() }}.</p>
+                      }
+                    </div>
+                  </article>
+                }
 
                 <article class="dashboard-widget widget-states">
                   <header class="widget-header">States</header>
