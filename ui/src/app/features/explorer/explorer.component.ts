@@ -339,7 +339,10 @@ export class ExplorerComponent implements OnInit {
   }
 
   visualizationSlots(): VisualizationSlot[] {
-    return resolveVisualizationSlots(this.dimensions);
+    // Pin slot layout to the unfiltered dimension schema so filtering a slot down to
+    // one value (e.g. category → "Company limited by shares") does not remove the widget.
+    const layout = this.unfilteredDimensions.length ? this.unfilteredDimensions : this.dimensions;
+    return resolveVisualizationSlots(layout);
   }
 
   slotGroup(slot: VisualizationSlot): DimensionGroup | undefined {
