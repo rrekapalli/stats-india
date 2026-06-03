@@ -17,6 +17,7 @@ import { select, zoom, zoomIdentity, scaleSequential, interpolateBlues } from 'd
 import indiaMap from '@svg-maps/india';
 import { StateMetric } from '../../../models/dataset.models';
 import { buildMetricTooltipHtml } from '../../../shared/stats-metric-tooltip.util';
+import { statePaletteColor } from '../geography-widget/state-color.util';
 
 interface MapLocation {
   name: string;
@@ -55,7 +56,7 @@ interface MapLocation {
             <span class="legend-unit">{{ unit }}</span>
           }
         </div>
-        <svg #svg [attr.viewBox]="mapViewBox" preserveAspectRatio="xMinYMid meet" role="img"
+        <svg #svg [attr.viewBox]="svgViewBox" [attr.preserveAspectRatio]="svgPreserveAspectRatio" role="img"
              aria-label="Zoomable India state map">
           <g #zoomLayer></g>
         </svg>
@@ -85,19 +86,60 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
 
-  readonly mapViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, {
+  readonly standaloneViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, {
     left: 0.05,
     right: 0.15,
     top: 0.05,
     bottom: 0.05
   });
+
+  readonly embeddedViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, {
+    left: 0.05,
+    right: 0.05,
+    top: 0.05,
+    bottom: 0.05
+  });
+
+  get svgViewBox(): string {
+    return this.embedded ? this.embeddedViewBox : this.standaloneViewBox;
+  }
+
+  get svgPreserveAspectRatio(): string {
+    return this.embedded ? 'xMidYMid meet' : 'xMinYMid meet';
+  }
+
   legendMin = 0;
   legendMax = 100;
 
   infoPanelHtml = '';
 
   private zoomBehavior: ReturnType<typeof zoom<SVGSVGElement, unknown>> | null = null;
-  private hoveredLocation: MapLocation | null = null;
+  private mapHoveredLocation: MapLocation | null = null;
+  private listHoveredState: string | null = null;
+  private choroplethScale: ReturnType<typeof scaleSequential<string>> | null = null;
+  private valueByStateCache = new Map<string, StateMetric>();
+
+  /** Preview a state from an external control (e.g. ranking list hover). */
+  showStatePreview(stateName: string): void {
+    this.listHoveredState = stateName;
+    this.syncHoverPresentation();
+  }
+
+  /** Clear external preview; map hover or national summary resumes. */
+  clearStatePreview(): void {
+    this.listHoveredState = null;
+    this.syncHoverPresentation();
+  }
+
+  resetZoom(): void {
+    if (!this.zoomBehavior) {
+      return;
+    }
+    select(this.svgRef.nativeElement)
+      .transition()
+      .duration(250)
+      .call(this.zoomBehavior.transform, zoomIdentity);
+  }
 
   ngAfterViewInit(): void {
     this.renderMap();
@@ -122,16 +164,6 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
     select(this.svgRef.nativeElement).on('.zoom', null);
   }
 
-  resetZoom(): void {
-    if (!this.zoomBehavior) {
-      return;
-    }
-    select(this.svgRef.nativeElement)
-      .transition()
-      .duration(250)
-      .call(this.zoomBehavior.transform, zoomIdentity);
-  }
-
   private setupZoom(): void {
     this.zoomBehavior = zoom<SVGSVGElement, unknown>()
       .scaleExtent([1, 8])
@@ -154,6 +186,8 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
 
     const color = scaleSequential(interpolateBlues)
       .domain([this.legendMin, this.legendMax || 1]);
+    this.choroplethScale = color;
+    this.valueByStateCache = valueByState;
 
     const layer = select(this.zoomLayerRef.nativeElement);
     layer.selectAll('*').remove();
@@ -168,27 +202,18 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
         if (this.selectedState === d.name) {
           classes.push('selected');
         }
+        if (this.isHoveredState(d.name)) {
+          classes.push('hovered');
+        }
         if (this.isDimmed(d.name, valueByState)) {
           classes.push('dimmed');
         }
         return classes.join(' ');
       })
       .attr('d', d => d.path)
-      .attr('fill', d => {
-        const metric = valueByState.get(this.normalizeName(d.name));
-        if (this.isDimmed(d.name, valueByState)) {
-          return '#e2e8f0';
-        }
-        if (metric == null) {
-          return '#f1f5f9';
-        }
-        if (metric.value <= 0) {
-          return '#eef2ff';
-        }
-        return color(metric.value);
-      })
-      .attr('stroke', d => (this.selectedState === d.name ? '#0f172a' : '#64748b'))
-      .attr('stroke-width', d => (this.selectedState === d.name ? 1.4 : 0.85))
+      .attr('fill', d => this.resolvePathFill(d.name, valueByState, color))
+      .attr('stroke', d => this.resolvePathStroke(d.name))
+      .attr('stroke-width', d => this.resolvePathStrokeWidth(d.name))
       .attr('stroke-linejoin', 'round')
       .attr('vector-effect', 'non-scaling-stroke')
       .attr('opacity', d => (this.isDimmed(d.name, valueByState) ? 0.35 : 1))
@@ -196,21 +221,112 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
 
     paths
       .on('mouseenter', (_event: MouseEvent, d) => {
-        this.hoveredLocation = d;
-        if (!this.hideInfoPanel) {
-          this.updateInfoPanel(d, valueByState.get(this.normalizeName(d.name)), total);
-        }
+        this.mapHoveredLocation = d;
+        this.syncHoverPresentation();
       })
       .on('mouseleave', () => {
-        this.hoveredLocation = null;
-        if (!this.hideInfoPanel) {
-          this.refreshInfoPanel();
-        }
+        this.mapHoveredLocation = null;
+        this.syncHoverPresentation();
       });
 
     paths.on('click', (_event, d) => {
       this.stateClick.emit(d.name);
     });
+
+    this.updateHoverStyles();
+  }
+
+  private resolvePathFill(
+    stateName: string,
+    valueByState: Map<string, StateMetric>,
+    choropleth: ReturnType<typeof scaleSequential<string>>
+  ): string {
+    if (this.listHoveredState === stateName) {
+      return statePaletteColor(stateName);
+    }
+    if (this.isDimmed(stateName, valueByState)) {
+      return '#e2e8f0';
+    }
+    const metric = valueByState.get(this.normalizeName(stateName));
+    if (metric == null) {
+      return '#f1f5f9';
+    }
+    if (metric.value <= 0) {
+      return '#eef2ff';
+    }
+    return choropleth(metric.value);
+  }
+
+  private resolvePathStroke(stateName: string): string {
+    if (this.listHoveredState === stateName) {
+      return '#0f172a';
+    }
+    if (this.selectedState === stateName) {
+      return '#0f172a';
+    }
+    if (this.isMapHoveredState(stateName)) {
+      return '#334155';
+    }
+    return '#64748b';
+  }
+
+  private resolvePathStrokeWidth(stateName: string): number {
+    if (this.listHoveredState === stateName || this.selectedState === stateName) {
+      return 1.4;
+    }
+    if (this.isMapHoveredState(stateName)) {
+      return 1.1;
+    }
+    return 0.85;
+  }
+
+  private isMapHoveredState(stateName: string): boolean {
+    return !this.listHoveredState && this.mapHoveredLocation?.name === stateName;
+  }
+
+  private isHoveredState(stateName: string): boolean {
+    const active = this.activeHoveredStateName();
+    return active != null && active === stateName;
+  }
+
+  private activeHoveredStateName(): string | null {
+    if (this.listHoveredState) {
+      return this.listHoveredState;
+    }
+    return this.mapHoveredLocation?.name ?? null;
+  }
+
+  private activeHoveredLocation(): MapLocation | null {
+    if (this.listHoveredState) {
+      const locations = (indiaMap as { locations: MapLocation[] }).locations;
+      return locations.find(l => this.normalizeName(l.name) === this.normalizeName(this.listHoveredState!)) ?? null;
+    }
+    return this.mapHoveredLocation;
+  }
+
+  private syncHoverPresentation(): void {
+    this.updateHoverStyles();
+    if (!this.hideInfoPanel) {
+      this.refreshInfoPanel();
+    }
+  }
+
+  private updateHoverStyles(): void {
+    if (!this.zoomLayerRef || !this.choroplethScale) {
+      return;
+    }
+    const choropleth = this.choroplethScale;
+    const valueByState = this.valueByStateCache;
+    const listHighlight = this.listHoveredState;
+    const highlight = this.activeHoveredStateName();
+
+    select(this.zoomLayerRef.nativeElement)
+      .selectAll<SVGPathElement, MapLocation>('path.state-path')
+      .classed('hovered', d => highlight != null && d.name === highlight && !listHighlight)
+      .classed('hovered-from-list', d => listHighlight != null && d.name === listHighlight)
+      .attr('fill', d => this.resolvePathFill(d.name, valueByState, choropleth))
+      .attr('stroke', d => this.resolvePathStroke(d.name))
+      .attr('stroke-width', d => this.resolvePathStrokeWidth(d.name));
   }
 
   private isDimmed(
@@ -227,12 +343,13 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   private refreshInfoPanel(): void {
-    if (this.hoveredLocation) {
+    const location = this.activeHoveredLocation();
+    if (location) {
       const valueByState = new Map(this.metrics.map(m => [this.normalizeName(m.state), m]));
       const total = this.resolveTotal();
       this.updateInfoPanel(
-        this.hoveredLocation,
-        valueByState.get(this.normalizeName(this.hoveredLocation.name)),
+        location,
+        valueByState.get(this.normalizeName(location.name)),
         total
       );
       return;

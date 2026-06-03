@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, EventEmitter, Input, Output, ViewChild, inject } from '@angular/core';
 import { StateMetric } from '../../../models/dataset.models';
 import {
   formatCompactThousands,
@@ -27,6 +27,8 @@ export interface StateRankingEntry {
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GeographyWidgetComponent {
+  private readonly cdr = inject(ChangeDetectorRef);
+
   @Input() metrics: StateMetric[] = [];
   @Input() mapTitle = 'India — state view';
   @Input() unit = '';
@@ -39,6 +41,8 @@ export class GeographyWidgetComponent {
   @Output() stateClick = new EventEmitter<string>();
 
   @ViewChild('stateMap') private stateMap?: IndiaStateMapComponent;
+
+  private listHoverState: string | null = null;
 
   resetMapZoom(): void {
     this.stateMap?.resetZoom();
@@ -82,6 +86,22 @@ export class GeographyWidgetComponent {
 
   isRowSelected(entry: StateRankingEntry): boolean {
     return this.selectedState === entry.name;
+  }
+
+  isRowHovered(entry: StateRankingEntry): boolean {
+    return this.listHoverState === entry.name;
+  }
+
+  onRowEnter(stateName: string): void {
+    this.listHoverState = stateName;
+    this.stateMap?.showStatePreview(stateName);
+    this.cdr.markForCheck();
+  }
+
+  onRowLeave(): void {
+    this.listHoverState = null;
+    this.stateMap?.clearStatePreview();
+    this.cdr.markForCheck();
   }
 
   onStateClick(stateName: string): void {

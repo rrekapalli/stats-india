@@ -24,7 +24,6 @@
     </div>
 
     <aside class="geo-ranking-pane" aria-label="State rankings">
-      <header class="geo-ranking-header">States</header>
       <ul class="geo-ranking-list">
         @for (entry of rankedStates(); track entry.name) {
           <li>
@@ -33,6 +32,9 @@
               class="geo-rank-row"
               [class.selected]="isRowSelected(entry)"
               [class.dimmed]="isRowDimmed(entry)"
+              [class.hovered]="isRowHovered(entry)"
+              (mouseenter)="onRowEnter(entry.name)"
+              (mouseleave)="onRowLeave()"
               (click)="onStateClick(entry.name)">
               <span class="geo-rank-bg" aria-hidden="true">
                 <span
