@@ -31,8 +31,6 @@ export function buildMetricTooltipHtml(options: MetricTooltipOptions): string {
     total,
     unit = '',
     subtitle,
-    datasetTitle,
-    category,
     rows = []
   } = options;
 
@@ -68,11 +66,6 @@ export function buildMetricTooltipHtml(options: MetricTooltipOptions): string {
       );
     }
     parts.push('</dl>');
-  }
-
-  const footerBits = [category, datasetTitle].filter(Boolean);
-  if (footerBits.length) {
-    parts.push(`<div class="stats-tooltip-footer">${escapeHtml(footerBits.join(' · '))}</div>`);
   }
 
   parts.push('</div>');

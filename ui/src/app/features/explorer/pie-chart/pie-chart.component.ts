@@ -122,7 +122,6 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       .slice(0, 7)
       .map(item => this.buildInfoLineHtml(item.label, item.value, pctTotal))
       .join('');
-    const footer = [this.datasetCategory, this.datasetTitle].filter(Boolean).join(' · ');
 
     return [
       '<div class="stats-tooltip">',
@@ -131,7 +130,6 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       pctLabel ? `<div class="stats-tooltip-percent">${escapeHtml(pctLabel)} of ${escapeHtml(formatMetricNumber(pctTotal))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>` : '',
       '<div class="stats-tooltip-subtitle">Hover a slice for detail</div>',
       `<div class="pie-info-lines">${lines}</div>`,
-      footer ? `<div class="stats-tooltip-footer">${escapeHtml(footer)}</div>` : '',
       '</div>'
     ].join('');
   }
@@ -139,7 +137,6 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   private buildSlicePanelHtml(item: PieChartItem): string {
     const total = this.resolveTotal();
     const pctLabel = total > 0 ? formatMetricPercent(item.value, total) : null;
-    const footer = [this.datasetCategory, this.datasetTitle].filter(Boolean).join(' · ');
 
     return [
       '<div class="stats-tooltip">',
@@ -147,7 +144,6 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       `<div class="stats-tooltip-value">${escapeHtml(formatMetricNumber(item.value))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>`,
       pctLabel ? `<div class="stats-tooltip-percent">${escapeHtml(pctLabel)} of ${escapeHtml(formatMetricNumber(total))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>` : '',
       `<div class="pie-info-lines">${this.buildInfoLineHtml(item.label, item.value, total)}</div>`,
-      footer ? `<div class="stats-tooltip-footer">${escapeHtml(footer)}</div>` : '',
       '</div>'
     ].join('');
   }
