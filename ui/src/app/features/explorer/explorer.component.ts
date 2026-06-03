@@ -17,7 +17,7 @@ import {
 import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
 
 type LeftDrawer = 'datasets' | 'categories' | null;
-type RightDrawer = 'filters' | 'map-settings' | 'dataset-info' | null;
+type RightDrawer = 'dimensions' | 'filters' | 'map-settings' | 'dataset-info' | null;
 
 @Component({
   selector: 'app-explorer',
@@ -163,5 +163,43 @@ export class ExplorerComponent implements OnInit {
 
   datasetsByCategory(category: string): DatasetSummary[] {
     return this.datasets.filter(d => d.category === category);
+  }
+
+  dimensionGroup(id: string): DimensionGroup | undefined {
+    return this.dimensions.find(g => g.id === id);
+  }
+
+  statusBreakdown(): { label: string; count: number }[] {
+    const group = this.dimensionGroup('company-status');
+    if (!group) {
+      return [];
+    }
+    return group.items
+      .map(item => ({
+        label: item.label,
+        count: Number.parseInt(item.valueType, 10) || 0
+      }))
+      .filter(item => item.count > 0)
+      .sort((a, b) => b.count - a.count);
+  }
+
+  topStates(limit = 8): StateMetric[] {
+    return [...this.stateMetrics].sort((a, b) => b.value - a.value).slice(0, limit);
+  }
+
+  summaryHighlights(): { label: string; value: string }[] {
+    const group = this.dimensionGroup('summary');
+    if (!group) {
+      return [];
+    }
+    return group.items.slice(0, 4).map(item => ({
+      label: item.label,
+      value: item.description
+    }));
+  }
+
+  maxStatusCount(): number {
+    const counts = this.statusBreakdown().map(s => s.count);
+    return counts.length ? Math.max(...counts) : 1;
   }
 }

@@ -24,7 +24,7 @@ interface MapLocation {
   standalone: true,
   imports: [DecimalPipe],
   template: `
-    <div class="map-shell">
+    <div class="map-shell" [class.map-shell-embedded]="embedded">
       <div class="map-toolbar">
         <span class="map-title">{{ title }}</span>
         <div class="map-actions">
@@ -53,6 +53,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @Input() metrics: StateMetric[] = [];
   @Input() title = 'India — state view';
   @Input() unit = '';
+  @Input() embedded = false;
 
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;

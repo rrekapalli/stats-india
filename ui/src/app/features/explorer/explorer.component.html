@@ -23,6 +23,13 @@
   <nav class="nav-bar right-nav-bar" aria-label="View options">
     <ul class="nav-menu">
       <li>
+        <button type="button" class="nav-icon-btn" [class.active]="activeRightDrawer === 'dimensions'"
+                (click)="toggleRightDrawer('dimensions')" title="Dimensions">
+          <i class="pi pi-sitemap"></i>
+          <span class="btn-label">Dimensions</span>
+        </button>
+      </li>
+      <li>
         <button type="button" class="nav-icon-btn" [class.active]="activeRightDrawer === 'filters'"
                 (click)="toggleRightDrawer('filters')" title="Filters">
           <i class="pi pi-filter"></i>
@@ -46,129 +53,174 @@
     </ul>
   </nav>
 
-  <!-- Main two-column workspace -->
+  <!-- Main workspace (single panel) -->
   <div class="main-content"
        [class.left-drawer-open]="activeLeftDrawer !== null"
        [class.right-drawer-open]="activeRightDrawer !== null">
-    <div class="workspace-columns">
-      <aside class="left-column panel">
-        <div class="panel-header">
-          <h2>{{ isLiveDataset() ? 'Dataset breakdown' : 'Dimensions' }}</h2>
-          @if (selectedDataset) {
-            <p-tag [value]="selectedDataset.category" severity="info" />
-          }
+    <section class="workspace-panel panel">
+      <div class="panel-header">
+        <div>
+          <h2>{{ selectedDataset?.title ?? 'Explorer' }}</h2>
+          <p class="muted">{{ selectedDataset?.description }}</p>
         </div>
-        @if (isLiveDataset() && liveTotalRecords) {
-          <p class="sample-note muted">
-            Sample of {{ liveSampleSize | number }} records (offset 0) from
-            {{ liveTotalRecords | number }} total on data.gov.in
-          </p>
+        @if (selectedDataset) {
+          <p-tag [value]="selectedDataset.category" severity="info" />
         }
-        <p-scrollPanel styleClass="dimension-scroll">
-          @if (loading && !dimensions.length) {
-            <p class="muted">Loading dataset…</p>
-          } @else {
-            <p-accordion [multiple]="true" [value]="accordionPanels">
-              @for (group of dimensions; track group.id) {
-                <p-accordion-panel [value]="group.id">
-                  <p-accordion-header>{{ group.label }}</p-accordion-header>
-                  <p-accordion-content>
-                    <ul class="dimension-list">
-                      @for (item of group.items; track item.id) {
-                        <li>
-                          <strong>{{ item.label }}</strong>
-                          <span>{{ item.description }}</span>
-                          <small>{{ item.valueType }}</small>
-                        </li>
-                      }
-                    </ul>
-                  </p-accordion-content>
-                </p-accordion-panel>
-              }
-            </p-accordion>
-          }
-        </p-scrollPanel>
-      </aside>
+      </div>
 
-      <section class="right-column panel">
-        <div class="panel-header">
-          <div>
-            <h2>{{ selectedDataset?.title ?? 'Explorer' }}</h2>
-            <p class="muted">{{ selectedDataset?.description }}</p>
-          </div>
-        </div>
-
-        <p-tabs [(value)]="activeTab" styleClass="explorer-tabs">
-          <p-tablist>
-            <p-tab value="visualization">Visualization</p-tab>
-            <p-tab value="data">Data</p-tab>
-          </p-tablist>
-          <p-tabpanels>
-            <p-tabpanel value="visualization">
-              <div class="viz-panel">
-                @if (loading) {
-                  <p class="muted center">Loading map data…</p>
-                } @else if (error) {
-                  <p class="error center">{{ error }}</p>
-                } @else {
+      <p-tabs [(value)]="activeTab" class="explorer-tabs">
+        <p-tablist>
+          <p-tab value="visualization">Visualizations</p-tab>
+          <p-tab value="data">Data</p-tab>
+        </p-tablist>
+        <p-tabpanels>
+          <p-tabpanel value="visualization">
+            <div class="viz-tab-shell">
+            <div class="viz-dashboard">
+              @if (loading) {
+                <p class="muted center dashboard-loading">Loading visualizations…</p>
+              } @else if (error) {
+                <p class="error center dashboard-loading">{{ error }}</p>
+              } @else {
+                <article class="dashboard-widget widget-map">
                   <app-india-state-map
                     [metrics]="stateMetrics"
-                    [title]="isLiveDataset() ? 'Registered companies by state (sample)' : (selectedDataset?.title ?? 'India map')"
-                    [unit]="stateMetrics[0]?.unit ?? ''" />
-                }
-              </div>
-            </p-tabpanel>
-            <p-tabpanel value="data">
-              @if (isLiveDataset() && datasetRecords.length) {
-                <p-table [value]="datasetRecords" [paginator]="true" [rows]="15"
-                         styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
-                  <ng-template pTemplate="header">
-                    <tr>
-                      <th>Company</th>
-                      <th>State</th>
-                      <th>Status</th>
-                      <th>Industry</th>
-                      <th>Reg. date</th>
-                    </tr>
-                  </ng-template>
-                  <ng-template pTemplate="body" let-row>
-                    <tr>
-                      <td>{{ row['companyName'] }}</td>
-                      <td>{{ row['companyStateCode'] }}</td>
-                      <td>{{ row['companyStatus'] }}</td>
-                      <td>{{ row['companyIndustrialClassification'] }}</td>
-                      <td>{{ row['registrationDate'] }}</td>
-                    </tr>
-                  </ng-template>
-                </p-table>
-              } @else {
-                <p-table [value]="stateMetrics" [paginator]="true" [rows]="12"
-                         styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
-                  <ng-template pTemplate="header">
-                    <tr>
-                      <th>State / UT</th>
-                      <th>Code</th>
-                      <th>Value</th>
-                      <th>Unit</th>
-                      <th>Year</th>
-                    </tr>
-                  </ng-template>
-                  <ng-template pTemplate="body" let-row>
-                    <tr>
-                      <td>{{ row.state }}</td>
-                      <td>{{ row.stateCode }}</td>
-                      <td>{{ row.value | number:'1.0-2' }}</td>
-                      <td>{{ row.unit }}</td>
-                      <td>{{ row.year }}</td>
-                    </tr>
-                  </ng-template>
-                </p-table>
+                    [title]="isLiveDataset() ? 'Companies by state (sample)' : (selectedDataset?.title ?? 'India map')"
+                    [unit]="stateMetrics[0]?.unit ?? ''"
+                    [embedded]="true" />
+                </article>
+
+                <article class="dashboard-widget widget-summary">
+                  <header class="widget-header">At a glance</header>
+                  <div class="widget-body kpi-grid">
+                    @if (isLiveDataset() && liveTotalRecords) {
+                      <div class="kpi-card">
+                        <span class="kpi-value">{{ liveTotalRecords | number }}</span>
+                        <span class="kpi-label">Portal total</span>
+                      </div>
+                      <div class="kpi-card">
+                        <span class="kpi-value">{{ liveSampleSize | number }}</span>
+                        <span class="kpi-label">Sample size</span>
+                      </div>
+                    }
+                    <div class="kpi-card">
+                      <span class="kpi-value">{{ stateMetrics.length }}</span>
+                      <span class="kpi-label">States in sample</span>
+                    </div>
+                    @for (item of summaryHighlights(); track item.label) {
+                      <div class="kpi-card">
+                        <span class="kpi-value">{{ item.value }}</span>
+                        <span class="kpi-label">{{ item.label }}</span>
+                      </div>
+                    }
+                  </div>
+                </article>
+
+                <article class="dashboard-widget widget-status">
+                  <header class="widget-header">Company status</header>
+                  <div class="widget-body">
+                    @if (statusBreakdown().length) {
+                      <ul class="bar-list">
+                        @for (row of statusBreakdown(); track row.label) {
+                          <li>
+                            <div class="bar-row">
+                              <span class="bar-label">{{ row.label }}</span>
+                              <span class="bar-value">{{ row.count | number }}</span>
+                            </div>
+                            <div class="bar-track">
+                              <div class="bar-fill"
+                                   [style.width.%]="(row.count / maxStatusCount()) * 100"></div>
+                            </div>
+                          </li>
+                        }
+                      </ul>
+                    } @else {
+                      <p class="muted widget-empty">No status breakdown for this dataset.</p>
+                    }
+                  </div>
+                </article>
+
+                <article class="dashboard-widget widget-states">
+                  <header class="widget-header">Top states</header>
+                  <div class="widget-body widget-table-wrap">
+                    @if (topStates().length) {
+                      <table class="mini-table">
+                        <thead>
+                          <tr>
+                            <th>State</th>
+                            <th>Count</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of topStates(); track row.state) {
+                            <tr>
+                              <td>{{ row.state }}</td>
+                              <td>{{ row.value | number:'1.0-0' }} {{ row.unit }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    } @else {
+                      <p class="muted widget-empty">No state metrics yet.</p>
+                    }
+                  </div>
+                </article>
               }
-            </p-tabpanel>
-          </p-tabpanels>
-        </p-tabs>
-      </section>
-    </div>
+            </div>
+            </div>
+          </p-tabpanel>
+          <p-tabpanel value="data">
+            <div class="data-tab-shell">
+            @if (isLiveDataset() && datasetRecords.length) {
+              <p-table [value]="datasetRecords" [paginator]="true" [rows]="15"
+                       styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>Company</th>
+                    <th>State</th>
+                    <th>Status</th>
+                    <th>Industry</th>
+                    <th>Reg. date</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row['companyName'] }}</td>
+                    <td>{{ row['companyStateCode'] }}</td>
+                    <td>{{ row['companyStatus'] }}</td>
+                    <td>{{ row['companyIndustrialClassification'] }}</td>
+                    <td>{{ row['registrationDate'] }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            } @else {
+              <p-table [value]="stateMetrics" [paginator]="true" [rows]="12"
+                       styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
+                <ng-template pTemplate="header">
+                  <tr>
+                    <th>State / UT</th>
+                    <th>Code</th>
+                    <th>Value</th>
+                    <th>Unit</th>
+                    <th>Year</th>
+                  </tr>
+                </ng-template>
+                <ng-template pTemplate="body" let-row>
+                  <tr>
+                    <td>{{ row.state }}</td>
+                    <td>{{ row.stateCode }}</td>
+                    <td>{{ row.value | number:'1.0-2' }}</td>
+                    <td>{{ row.unit }}</td>
+                    <td>{{ row.year }}</td>
+                  </tr>
+                </ng-template>
+              </p-table>
+            }
+            </div>
+          </p-tabpanel>
+        </p-tabpanels>
+      </p-tabs>
+    </section>
   </div>
 
   <!-- Left drawer -->
@@ -220,6 +272,7 @@
       <div class="filter-drawer-header">
         <h3>
           @switch (activeRightDrawer) {
+            @case ('dimensions') { {{ isLiveDataset() ? 'Dataset breakdown' : 'Dimensions' }} }
             @case ('filters') { Filters }
             @case ('map-settings') { Map settings }
             @case ('dataset-info') { Dataset info }
@@ -229,9 +282,41 @@
       </div>
       <p-scrollPanel styleClass="drawer-scroll">
         @switch (activeRightDrawer) {
+          @case ('dimensions') {
+            @if (isLiveDataset() && liveTotalRecords) {
+              <p class="sample-note muted drawer-sample-note">
+                Sample of {{ liveSampleSize | number }} records (offset 0) from
+                {{ liveTotalRecords | number }} total on data.gov.in
+              </p>
+            }
+            @if (loading && !dimensions.length) {
+              <p class="muted drawer-section">Loading dataset…</p>
+            } @else {
+              <div class="drawer-section drawer-dimensions">
+                <p-accordion [multiple]="true" [value]="accordionPanels">
+                  @for (group of dimensions; track group.id) {
+                    <p-accordion-panel [value]="group.id">
+                      <p-accordion-header>{{ group.label }}</p-accordion-header>
+                      <p-accordion-content>
+                        <ul class="dimension-list">
+                          @for (item of group.items; track item.id) {
+                            <li>
+                              <strong>{{ item.label }}</strong>
+                              <span>{{ item.description }}</span>
+                              <small>{{ item.valueType }}</small>
+                            </li>
+                          }
+                        </ul>
+                      </p-accordion-content>
+                    </p-accordion-panel>
+                  }
+                </p-accordion>
+              </div>
+            }
+          }
           @case ('filters') {
             <div class="drawer-section">
-              <p class="muted">Filter by geography, time period, and sector using the dimension accordions on the left panel.</p>
+              <p class="muted">Filter by geography, time period, and sector using the dimension groups in the Dimensions panel.</p>
               <ul class="check-list">
                 <li><label><input type="checkbox" checked disabled /> All states & UTs</label></li>
                 <li><label><input type="checkbox" checked disabled /> Latest published year</label></li>
