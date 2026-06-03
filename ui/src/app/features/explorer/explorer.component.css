@@ -409,7 +409,8 @@
 }
 
 .widget-bar-horizontal .widget-body.widget-chart-body {
-  padding: 0.15rem 0.3rem 0.1rem;
+  padding: 0.15rem 0.3rem 0.1rem 3%;
+  box-sizing: border-box;
 }
 
 .widget-status {

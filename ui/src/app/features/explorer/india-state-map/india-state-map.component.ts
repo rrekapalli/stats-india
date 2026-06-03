@@ -248,11 +248,8 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       return '#e2e8f0';
     }
     const metric = valueByState.get(this.normalizeName(stateName));
-    if (metric == null) {
-      return '#f1f5f9';
-    }
-    if (metric.value <= 0) {
-      return '#eef2ff';
+    if (metric == null || metric.value <= 0) {
+      return '#ffffff';
     }
     return choropleth(metric.value);
   }
