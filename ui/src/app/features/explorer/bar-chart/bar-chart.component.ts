@@ -130,10 +130,10 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const chartHeight = isHorizontal
       ? Math.max(hostSize.height, this.items.length * rowHeight + 48)
       : viewportHeight;
-    const verticalBottomMargin = 28;
+    const verticalBottomMargin = Math.max(44, Math.round(chartHeight * 0.14));
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
-      : { top: 6, right: 6, bottom: verticalBottomMargin, left: 32 };
+      : { top: 8, right: 6, bottom: verticalBottomMargin, left: 32 };
 
     const innerWidth = chartWidth - margin.left - margin.right;
     const innerHeight = chartHeight - margin.top - margin.bottom;
@@ -247,9 +247,10 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       g.append('g')
         .attr('class', 'axis axis-x')
         .attr('transform', `translate(0,${innerHeight})`)
-        .call(axisBottom(x).tickSizeOuter(0).tickPadding(4).tickFormat(id => {
+        .call(axisBottom(x).tickSizeOuter(0).tickPadding(6).tickFormat(id => {
           const label = this.items.find(d => d.id === id)?.label ?? id;
-          return label.length > 12 ? `${label.slice(0, 11)}…` : label;
+          const maxLen = verticalBottomMargin >= 48 ? 16 : 12;
+          return label.length > maxLen ? `${label.slice(0, maxLen - 1)}…` : label;
         }));
 
       g.select('.axis-x')

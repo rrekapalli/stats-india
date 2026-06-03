@@ -40,7 +40,7 @@ interface MapLocation {
       </div>
       <div class="map-viewport" #viewport>
         <div class="map-info-panel" [innerHTML]="infoPanelHtml"></div>
-        <svg #svg [attr.viewBox]="viewBox" preserveAspectRatio="xMidYMid meet" role="img"
+        <svg #svg [attr.viewBox]="mapViewBox" preserveAspectRatio="xMinYMid meet" role="img"
              aria-label="Zoomable India state map">
           <g #zoomLayer></g>
         </svg>
@@ -74,7 +74,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
 
-  readonly viewBox = indiaMap.viewBox;
+  readonly mapViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, 0.05, 0.15);
   legendMin = 0;
   legendMax = 100;
 
@@ -279,4 +279,15 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   private normalizeName(name: string): string {
     return name.trim().toLowerCase();
   }
+}
+
+function buildMapViewBoxWithMargins(raw: string, leftRatio: number, rightRatio: number): string {
+  const parts = raw.trim().split(/\s+/).map(Number);
+  if (parts.length !== 4 || parts.some(n => !Number.isFinite(n))) {
+    return raw;
+  }
+  const [x, y, width, height] = parts;
+  const leftPad = width * leftRatio;
+  const rightPad = width * rightRatio;
+  return `${x - leftPad} ${y} ${width + leftPad + rightPad} ${height}`;
 }

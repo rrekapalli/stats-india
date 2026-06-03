@@ -56,7 +56,9 @@
 .map-info-panel {
   position: absolute;
   top: 0.35rem;
-  left: 0.35rem;
+  right: 0.35rem;
+  left: auto;
+  bottom: auto;
   z-index: 5;
   pointer-events: none;
   max-width: min(88%, 240px);
@@ -65,7 +67,7 @@
 :host ::ng-deep .map-info-panel .stats-tooltip {
   border: none;
   box-shadow: none;
-  background: rgba(255, 255, 255, 0.88);
+  background: transparent;
   padding: 0.25rem 0.35rem;
   font-size: 0.58rem;
   line-height: 1.3;

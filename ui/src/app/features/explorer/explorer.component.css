@@ -411,7 +411,7 @@
 
 .widget-status {
   grid-column: 1 / 6;
-  grid-row: 16 / 24;
+  grid-row: 16 / 26;
 }
 
 .widget-status .widget-body.widget-chart-body {
