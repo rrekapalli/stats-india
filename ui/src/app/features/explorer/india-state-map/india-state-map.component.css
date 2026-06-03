@@ -71,14 +71,13 @@ svg {
 }
 
 :host ::ng-deep .state-path {
-  stroke: #fff;
-  stroke-width: 0.6;
-  transition: fill 160ms ease, opacity 160ms ease;
+  transition: fill 160ms ease, opacity 160ms ease, stroke 160ms ease;
 }
 
 :host ::ng-deep .state-path:hover {
-  opacity: 0.85;
-  stroke-width: 1.2;
+  opacity: 0.9;
+  stroke: #334155;
+  stroke-width: 1.1;
 }
 
 :host ::ng-deep .state-path.dimmed {

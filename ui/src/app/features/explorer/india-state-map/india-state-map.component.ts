@@ -162,8 +162,18 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
         if (this.isDimmed(d.name, valueByState)) {
           return '#e2e8f0';
         }
-        return metric == null ? '#e2e8f0' : color(metric.value);
+        if (metric == null) {
+          return '#f1f5f9';
+        }
+        if (metric.value <= 0) {
+          return '#eef2ff';
+        }
+        return color(metric.value);
       })
+      .attr('stroke', d => (this.selectedState === d.name ? '#0f172a' : '#64748b'))
+      .attr('stroke-width', d => (this.selectedState === d.name ? 1.4 : 0.85))
+      .attr('stroke-linejoin', 'round')
+      .attr('vector-effect', 'non-scaling-stroke')
       .attr('opacity', d => (this.isDimmed(d.name, valueByState) ? 0.35 : 1))
       .style('cursor', 'pointer');
 

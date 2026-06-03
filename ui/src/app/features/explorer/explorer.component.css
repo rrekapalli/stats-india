@@ -395,7 +395,7 @@
 }
 
 .widget-map {
-  grid-column: 1 / 9;
+  grid-column: 1 / 7;
   grid-row: 2 / 18;
   min-height: 0;
   display: flex;
@@ -410,7 +410,7 @@
 }
 
 .widget-status {
-  grid-column: 1 / 9;
+  grid-column: 1 / 7;
   grid-row: 18 / 24;
 }
 
@@ -424,7 +424,7 @@
 }
 
 .widget-states {
-  grid-column: 9 / -1;
+  grid-column: 7 / -1;
   grid-row: 2 / 26;
 }
 
