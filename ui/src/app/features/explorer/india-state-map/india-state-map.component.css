@@ -18,7 +18,7 @@
 .map-shell-embedded {
   border: none;
   border-radius: 0;
-  background: transparent;
+  background: #fff;
 }
 
 .map-toolbar {
@@ -49,7 +49,7 @@
   min-height: 0;
   overflow: hidden;
   cursor: grab;
-  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  background: #fff;
 }
 
 .map-viewport:active {

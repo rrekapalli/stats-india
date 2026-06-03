@@ -89,38 +89,22 @@
               } @else if (error) {
                 <p class="error center dashboard-loading">{{ error }}</p>
               } @else {
+                <div class="kpi-strip">
+                  @for (tile of glanceTiles(); track tile.title) {
+                    <div class="kpi-tile">
+                      <span class="kpi-tile-title">{{ tile.title }}</span>
+                      <span class="kpi-tile-value">{{ tile.value }}</span>
+                      <span class="kpi-tile-subtitle">{{ tile.subtitle }}</span>
+                    </div>
+                  }
+                </div>
+
                 <article class="dashboard-widget widget-map">
                   <app-india-state-map
                     [metrics]="stateMetrics"
                     [title]="isLiveDataset() ? 'Companies by state' : (selectedDataset?.title ?? 'India map')"
                     [unit]="stateMetrics[0]?.unit ?? ''"
                     [embedded]="true" />
-                </article>
-
-                <article class="dashboard-widget widget-summary">
-                  <header class="widget-header">At a glance</header>
-                  <div class="widget-body kpi-grid">
-                    @if (isLiveDataset() && liveTotalRecords) {
-                      <div class="kpi-card">
-                        <span class="kpi-value">{{ liveTotalRecords | number }}</span>
-                        <span class="kpi-label">Portal total</span>
-                      </div>
-                      <div class="kpi-card">
-                        <span class="kpi-value">{{ recordsCached | number }}</span>
-                        <span class="kpi-label">Cached locally</span>
-                      </div>
-                    }
-                    <div class="kpi-card">
-                      <span class="kpi-value">{{ stateMetrics.length }}</span>
-                      <span class="kpi-label">States / UTs</span>
-                    </div>
-                    @for (item of summaryHighlights(); track item.label) {
-                      <div class="kpi-card">
-                        <span class="kpi-value">{{ item.value }}</span>
-                        <span class="kpi-label">{{ item.label }}</span>
-                      </div>
-                    }
-                  </div>
                 </article>
 
                 <article class="dashboard-widget widget-status">

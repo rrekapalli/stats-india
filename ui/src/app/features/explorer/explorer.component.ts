@@ -20,6 +20,12 @@ import { IndiaStateMapComponent } from './india-state-map/india-state-map.compon
 type LeftDrawer = 'datasets' | 'categories' | null;
 type RightDrawer = 'dimensions' | 'filters' | 'map-settings' | 'dataset-info' | null;
 
+interface GlanceTile {
+  title: string;
+  subtitle: string;
+  value: string;
+}
+
 @Component({
   selector: 'app-explorer',
   standalone: true,
@@ -290,6 +296,79 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       label: item.label,
       value: item.description
     }));
+  }
+
+  glanceTiles(): GlanceTile[] {
+    const tiles: GlanceTile[] = [];
+    const seen = new Set<string>();
+
+    const add = (title: string, subtitle: string, value: string): void => {
+      const key = title.toLowerCase();
+      if (seen.has(key)) {
+        return;
+      }
+      seen.add(key);
+      tiles.push({ title, subtitle, value });
+    };
+
+    if (this.isLiveDataset()) {
+      if (this.liveTotalRecords) {
+        add(
+          'Portal total',
+          'Records published on data.gov.in',
+          this.liveTotalRecords.toLocaleString()
+        );
+      }
+      if (this.recordsCached || this.isSyncInProgress()) {
+        const cacheSubtitle = this.isSyncInProgress()
+          ? `Sync in progress (${this.syncProgressPercent()}%)`
+          : this.cachedAt
+            ? `Last synced ${new Date(this.cachedAt).toLocaleDateString()}`
+            : 'Stored locally for fast access';
+        add('Cached locally', cacheSubtitle, this.recordsCached.toLocaleString());
+      }
+    }
+
+    if (this.stateMetrics.length) {
+      const unit = this.stateMetrics[0]?.unit ?? 'units';
+      add(
+        'States / UTs',
+        'Geographies represented in this dataset',
+        String(this.stateMetrics.length)
+      );
+
+      const top = this.topStates(1)[0];
+      if (top) {
+        add(
+          'Top state',
+          `${top.state} leads by ${unit}`,
+          top.value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+        );
+      }
+
+      if (!this.isLiveDataset()) {
+        const total = this.stateMetrics.reduce((sum, m) => sum + m.value, 0);
+        add(
+          'National total',
+          `Sum across all states (${unit})`,
+          total.toLocaleString(undefined, { maximumFractionDigits: 0 })
+        );
+      }
+    }
+
+    for (const item of this.summaryHighlights()) {
+      const skipLabels = ['total records (portal)', 'records cached locally', 'states / uts represented'];
+      if (skipLabels.some(s => item.label.toLowerCase().includes(s))) {
+        continue;
+      }
+      add(item.label, 'Dataset summary', item.value);
+    }
+
+    if (!tiles.length && this.selectedDataset) {
+      add(this.selectedDataset.category, this.selectedDataset.updateFrequency, '—');
+    }
+
+    return tiles;
   }
 
   maxStatusCount(): number {
