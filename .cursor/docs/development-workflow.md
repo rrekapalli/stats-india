@@ -54,9 +54,10 @@ Libraries: `ui/projects/{angular-grid-layout,dashboard,d3-dashboards}`
 ## Deploy to production LXC
 
 ```bash
-./deployment/deploy-all.sh
+./deploy.sh --all
 # or incremental:
-./deployment/build-and-deploy.sh --api --skip-build
+./deploy.sh --api --skip-build
+./deploy.sh --ui
 ./deployment/proxmox/join-tailscale.sh
 ```
 

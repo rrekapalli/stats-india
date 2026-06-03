@@ -26,8 +26,8 @@ mvn spring-boot:run -Dfrontend.skip=true   # terminal 2
 ### Build & deploy
 
 ```bash
-./deployment/prepare-artifacts.sh
-./deployment/deploy-all.sh
+./deploy.sh --all
+# or: ./deploy.sh --ui | ./deploy.sh --api
 ```
 
 ### Add data.gov.in dataset

@@ -37,7 +37,7 @@ if [[ -z "$JAR_PATH" ]]; then
         JAR_PATH=$(find "$ROOT_DIR/target" -maxdepth 1 -name 'stats-india-*.jar' ! -name '*-sources.jar' 2>/dev/null | head -n1)
     fi
 fi
-[[ -n "$JAR_PATH" && -f "$JAR_PATH" ]] || { log_error "JAR not found. Run ./deployment/prepare-artifacts.sh or pass jar path."; exit 1; }
+[[ -n "$JAR_PATH" && -f "$JAR_PATH" ]] || { log_error "JAR not found. Run ./deploy.sh --api or pass jar path."; exit 1; }
 
 log_info "=== Stats India API deploy ==="
 log_info "JAR: $JAR_PATH"

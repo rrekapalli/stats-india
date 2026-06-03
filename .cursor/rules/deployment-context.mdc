@@ -21,7 +21,7 @@ Full detail: `.cursor/docs/infrastructure.md`
 ## Deploy commands
 
 ```bash
-./deployment/deploy-all.sh
+./deploy.sh --all
 ./deployment/proxmox/join-tailscale.sh
 ```
 

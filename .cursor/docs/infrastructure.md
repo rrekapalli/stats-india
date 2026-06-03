@@ -46,17 +46,17 @@ UFW allows 22, 80, 8080 on deploy.
 ## Deployment flow
 
 ```bash
-./deployment/prepare-artifacts.sh     # mvn package + frontend-dist.zip
-./deployment/deploy-all.sh            # API + UI to VMID 7001
+./deploy.sh --all                     # build + deploy API + UI to VMID 7001
 ./deployment/proxmox/join-tailscale.sh   # if Tailscale not yet joined
 ```
 
-Individual steps:
+Examples:
 
 ```bash
-./deployment/proxmox/deploy-api.sh [--recreate]
-./deployment/proxmox/deploy-ui.sh [--recreate]
-./deployment/build-and-deploy.sh --all --skip-build
+./deploy.sh --ui
+./deploy.sh --api
+./deploy.sh --all --skip-build
+./deploy.sh --all --recreate
 ```
 
 Artifacts: `deployment/artifacts/stats-india-1.0.0.jar`, `frontend-dist.zip`

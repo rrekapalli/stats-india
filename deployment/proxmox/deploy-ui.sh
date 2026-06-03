@@ -34,7 +34,7 @@ fi
 if [[ -z "$ZIP_PATH" ]]; then
     ZIP_PATH="${ARTIFACTS_DIR}/frontend-dist.zip"
 fi
-[[ -f "$ZIP_PATH" ]] || { log_error "UI zip not found: $ZIP_PATH. Run ./deployment/prepare-artifacts.sh"; exit 1; }
+[[ -f "$ZIP_PATH" ]] || { log_error "UI zip not found: $ZIP_PATH. Run ./deploy.sh --ui"; exit 1; }
 
 log_info "=== Stats India UI deploy ==="
 log_info "Zip: $ZIP_PATH"

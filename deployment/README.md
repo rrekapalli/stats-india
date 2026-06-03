@@ -5,11 +5,12 @@ Deploy the Stats India UI (nginx) and API (Spring Boot) to a single Proxmox LXC 
 ## Layout
 
 ```
+deploy.sh                     # build + deploy (--ui / --api / --all)
 deployment/
-├── prepare-artifacts.sh      # mvn package → JAR + frontend-dist.zip
-├── build-and-deploy.sh       # build + deploy API/UI
-├── deploy-all.sh               # alias for build-and-deploy --all
-├── artifacts/                  # built outputs (gitignored)
+├── prepare-artifacts.sh      # build only (mvn package → artifacts)
+├── build-and-deploy.sh       # forwards to ../deploy.sh
+├── deploy-all.sh             # forwards to ../deploy.sh --all
+├── artifacts/                # built outputs (gitignored)
 └── proxmox/
     ├── deployment.conf         # VMID, hostname, ports, clone template
     ├── deploy-api.sh           # Spring Boot systemd on :8080
@@ -51,15 +52,15 @@ Tailscale IP for this node: check with `pct exec 7001 -- tailscale ip -4` on the
 # From repo root
 cp .env.example .env   # edit secrets
 
-# Build JAR + UI zip
+# Build and deploy API + UI to VMID 7001
+./deploy.sh --all
+
+# Or deploy one service
+./deploy.sh --ui
+./deploy.sh --api
+
+# Build artifacts only (no deploy)
 ./deployment/prepare-artifacts.sh
-
-# Deploy API + UI to VMID 7001
-./deployment/deploy-all.sh
-
-# Or deploy individually
-./deployment/proxmox/deploy-api.sh
-./deployment/proxmox/deploy-ui.sh
 ```
 
 ## Runtime architecture (single LXC)
@@ -74,10 +75,11 @@ nginx proxies `location /api/` to `http://127.0.0.1:8080`.
 ## Options
 
 ```bash
-./deployment/build-and-deploy.sh --api --skip-build
-./deployment/build-and-deploy.sh --ui
-./deployment/build-and-deploy.sh --all --recreate   # destroy + clone LXC first
-./deployment/prepare-artifacts.sh --with-tests      # run Maven tests
+./deploy.sh --api --skip-build
+./deploy.sh --ui
+./deploy.sh --all --recreate          # destroy + clone LXC before first deploy step
+./deploy.sh --all --with-tests        # run Maven tests during build
+./deployment/prepare-artifacts.sh --with-tests   # build only, with tests
 ```
 
 ## Configuration

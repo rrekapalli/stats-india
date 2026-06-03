@@ -1,6 +1,7 @@
 #!/bin/bash
-# Convenience entry point: build and deploy all Stats India services to LXC VMID 7001.
+# Deprecated: use ./deploy.sh --all from the repo root.
 
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-exec "${SCRIPT_DIR}/build-and-deploy.sh" --all "$@"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+exec "${ROOT_DIR}/deploy.sh" --all "$@"
