@@ -35,6 +35,11 @@ export class StatsApiService {
     return this.http.get<StateMetric[]>(`${this.base}/datasets/${datasetId}/state-metrics`);
   }
 
+  /** Aggregates + meta only — no row payload (used for dashboard summary). */
+  getDatasetSummary(datasetId: string): Observable<DatasetDataResponse> {
+    return this.getDatasetData(datasetId, 0, 0, false);
+  }
+
   getDatasetData(
     datasetId: string,
     offset = 0,

@@ -28,6 +28,7 @@ public class DatasetCacheRepository {
     public void initSchema() {
         jdbc.execute("PRAGMA journal_mode=WAL");
         jdbc.execute("PRAGMA synchronous=NORMAL");
+        jdbc.execute("PRAGMA busy_timeout=10000");
         jdbc.execute("""
                 CREATE TABLE IF NOT EXISTS dataset_meta (
                     resource_id TEXT PRIMARY KEY,

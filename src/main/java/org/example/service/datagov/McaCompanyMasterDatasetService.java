@@ -156,7 +156,10 @@ public class McaCompanyMasterDatasetService {
                 .map(e -> new StateMetric(e.getKey(), stateCode(e.getKey()), e.getValue(), "companies", "cached"))
                 .toList();
 
-        long cachedTotal = meta.cachedRecords() > 0 ? meta.cachedRecords() : cacheRepository.countRecords(RESOURCE_ID);
+        long cachedTotal = meta.cachedRecords();
+        if (cachedTotal <= 0 && meta.status() == DatasetFetchStatus.READY) {
+            cachedTotal = cacheRepository.countRecords(RESOURCE_ID);
+        }
         List<DimensionGroup> dimensionGroups = List.of(
                 summaryGroup(meta.portalTotal(), cachedTotal, byState.size(), meta.fetchedAt()),
                 countGroup("company-status", "Company status", byStatus),

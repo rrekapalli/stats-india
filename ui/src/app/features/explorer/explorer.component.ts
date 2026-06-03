@@ -27,7 +27,8 @@ import {
   dimensionLabelForFilterColumn,
   filterMcaRecords
 } from './explorer-mca-filter.util';
-import { Observable, forkJoin } from 'rxjs';
+import { Observable, concatMap, from, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
@@ -110,9 +111,13 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   private unfilteredDimensions: DimensionGroup[] = [];
   private liveRecords: Record<string, string>[] = [];
   private liveRecordsLoading = false;
+  private liveRecordsLoadTarget = 0;
 
   private syncPollTimer: ReturnType<typeof setInterval> | null = null;
+  private syncPollTicks = 0;
   private readonly recordPageSize = 10_000;
+  /** Cap client-side cross-filter loading so summary reads are not starved. */
+  private readonly maxCrossFilterRecords = 250_000;
 
   readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
 
@@ -147,6 +152,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.dataFirst = 0;
     this.datasetRecords = [];
     this.liveRecords = [];
+    this.liveRecordsLoadTarget = 0;
     this.unfilteredStateMetrics = [];
     this.unfilteredDimensions = [];
     this.crossFilter.clear();
@@ -181,7 +187,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   private loadLiveDatasetSummary(resourceId: string): void {
-    this.api.getDatasetData(resourceId, 0, 0, false).subscribe({
+    this.api.getDatasetSummary(resourceId).subscribe({
       next: data => {
         this.applyLiveDatasetResponse(data);
         this.loading = false;
@@ -250,7 +256,19 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       this.stateMetrics = data.stateMetrics;
     }
     this.updateAccordionPanels(this.dimensions);
-    this.ensureLiveRecordsLoaded();
+  }
+
+  /** Lightweight refresh of aggregates/meta (no records). */
+  private refreshLiveDatasetSummary(resourceId: string): void {
+    this.api.getDatasetSummary(resourceId).subscribe({
+      next: data => {
+        this.applyLiveDatasetResponse(data);
+        if (this.crossFilter.active && this.liveRecords.length) {
+          this.applyCrossFiltersToVisualizations();
+        }
+        this.cdr.markForCheck();
+      }
+    });
   }
 
   private updateAccordionPanels(dimensions: DimensionGroup[]): void {
@@ -259,35 +277,57 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   private ensureLiveRecordsLoaded(): void {
-    if (!this.isLiveDataset() || this.liveRecordsLoading) {
+    if (!this.isLiveDataset() || !this.crossFilter.active) {
       return;
     }
-    const target = this.recordsCached;
-    if (!target || this.liveRecords.length >= target) {
-      if (this.crossFilter.active) {
-        this.applyCrossFiltersToVisualizations();
-      }
+    const target = Math.min(this.recordsCached, this.maxCrossFilterRecords);
+    if (!target) {
       return;
     }
+    if (this.liveRecordsLoading && this.liveRecordsLoadTarget === target) {
+      return;
+    }
+    if (this.liveRecords.length >= target) {
+      this.applyCrossFiltersToVisualizations();
+      return;
+    }
+
     this.liveRecordsLoading = true;
+    this.liveRecordsLoadTarget = target;
+    this.liveRecords = [];
     const resourceId = this.selectedDataset!.id;
-    const pages: Observable<DatasetDataResponse>[] = [];
+    const offsets: number[] = [];
     for (let offset = 0; offset < target; offset += this.recordPageSize) {
-      const limit = Math.min(this.recordPageSize, target - offset);
-      pages.push(this.api.getDatasetData(resourceId, offset, limit, true));
+      offsets.push(offset);
     }
-    forkJoin(pages).subscribe({
-      next: responses => {
-        this.liveRecords = responses.flatMap(r => r.records);
-        this.liveRecordsLoading = false;
-        this.applyCrossFiltersToVisualizations();
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.liveRecordsLoading = false;
-        this.cdr.markForCheck();
-      }
-    });
+
+    from(offsets)
+      .pipe(
+        concatMap(offset => {
+          const limit = Math.min(this.recordPageSize, target - offset);
+          return this.api.getDatasetData(resourceId, offset, limit, true).pipe(
+            catchError(() => of({ records: [] as Record<string, string>[] }))
+          );
+        })
+      )
+      .subscribe({
+        next: response => {
+          if (response.records.length) {
+            this.liveRecords = this.liveRecords.concat(response.records);
+            this.applyCrossFiltersToVisualizations();
+            this.cdr.markForCheck();
+          }
+        },
+        complete: () => {
+          this.liveRecordsLoading = false;
+          this.applyCrossFiltersToVisualizations();
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.liveRecordsLoading = false;
+          this.cdr.markForCheck();
+        }
+      });
   }
 
   private applyCrossFiltersToVisualizations(): void {
@@ -326,6 +366,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     if (!added) {
       return;
     }
+    this.ensureLiveRecordsLoaded();
     this.applyCrossFiltersToVisualizations();
     this.cdr.markForCheck();
   }
@@ -353,17 +394,29 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   private startSyncPolling(resourceId: string): void {
     this.stopSyncPolling();
+    this.syncPollTicks = 0;
     this.syncPollTimer = setInterval(() => {
-      this.api.getDatasetData(resourceId, 0, 0, false).subscribe({
-        next: data => {
+      this.api.getSyncStatus(resourceId).subscribe({
+        next: status => {
+          this.syncPollTicks++;
           const prevCached = this.recordsCached;
-          this.applyLiveDatasetResponse(data);
-          if (data.recordsCached > prevCached) {
-            this.liveRecords = [];
-            this.ensureLiveRecordsLoaded();
+          this.syncStatus = status.status;
+          this.recordsCached = status.cachedRecords;
+          this.liveTotalRecords = status.portalTotal;
+          this.cachedAt = status.fetchedAt;
+
+          const syncDone = status.status !== 'SYNCING' && status.status !== 'MISSING';
+          const cacheGrew = status.cachedRecords > prevCached;
+          if (syncDone || cacheGrew || this.syncPollTicks % 6 === 0) {
+            this.refreshLiveDatasetSummary(resourceId);
           }
-          if (!this.isSyncInProgress()) {
+
+          if (syncDone) {
             this.stopSyncPolling();
+            if (this.crossFilter.active) {
+              this.liveRecords = [];
+              this.ensureLiveRecordsLoaded();
+            }
           }
           this.cdr.markForCheck();
         }
