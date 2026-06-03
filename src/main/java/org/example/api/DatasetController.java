@@ -48,6 +48,9 @@ public class DatasetController {
     @GetMapping("/{id}/dimensions")
     public List<DimensionGroup> getDimensions(@PathVariable String id) {
         try {
+            if (datasetDataService.supportsLiveData(id)) {
+                return datasetDataService.getExploreSummary(id).dimensionGroups();
+            }
             return catalogService.getDimensions(id);
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
@@ -56,11 +59,8 @@ public class DatasetController {
 
     @GetMapping("/{id}/state-metrics")
     public List<StateMetric> getStateMetrics(@PathVariable String id) {
-        if (datasetDataService.supportsLiveData(id)) {
-            return datasetDataService.getExploreSummary(id).stateMetrics();
-        }
         try {
-            return catalogService.getStateMetrics(id);
+            return datasetDataService.getExploreSummary(id).stateMetrics();
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
         }

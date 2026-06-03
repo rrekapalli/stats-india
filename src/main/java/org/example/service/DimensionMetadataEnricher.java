@@ -10,8 +10,7 @@ import java.util.Set;
 
 /**
  * Adds role + cardinality + filter metadata to {@link DimensionGroup} instances built by
- * legacy code paths (catalog mocks, MCA aggregator) so the UI can pick chart types
- * uniformly. Pure functions — no Spring component needed.
+ * live dataset aggregation so the UI can pick chart types uniformly.
  */
 public final class DimensionMetadataEnricher {
 

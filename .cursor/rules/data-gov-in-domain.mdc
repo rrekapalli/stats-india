@@ -11,9 +11,10 @@ Detail: `.cursor/docs/domain-data-gov-in.md`
 
 - API key: `DATA_GOV_IN_API_KEY` in `.env` / systemd only — never in `ui/`
 - Prefer `format=json` via `DataGovInClient`
-- One **`service/datagov/*DatasetService`** per resource UUID with its own cleanup/marshalling
-- Register new datasets in `DatasetDataService` + `DatasetCatalogService`
-- Normalize state names for `@svg-maps/india` (see `McaCompanyMasterDatasetService`)
+- One **`service/datagov/*`** config entry per resource UUID via **`LiveDatasetRegistry`** + **`CachedLiveDatasetService`**
+- Register new datasets in **`LiveDatasetDefinition`** + **`LiveDatasetRegistry`**
+- No mock/sample catalog data — all explorer datasets must be live data.gov.in resources synced to SQLite
+- Normalize state names for `@svg-maps/india` (see `IndianStateNormalizer`)
 
 ## MCA reference dataset
 

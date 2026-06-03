@@ -113,12 +113,13 @@ export class ExplorerComponent implements OnInit {
   private crossFilterRequestId = 0;
   filterApplying = false;
 
-  readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
+  categories: string[] = [];
 
   ngOnInit(): void {
     this.api.listDatasets().subscribe({
       next: datasets => {
         this.datasets = datasets;
+        this.categories = [...new Set(datasets.map(d => d.category).filter(Boolean))].sort();
         const live = datasets.find(d => d.id === MCA_COMPANY_MASTER_RESOURCE_ID) ?? datasets[0];
         if (live) {
           this.selectDataset(live);
@@ -304,7 +305,7 @@ export class ExplorerComponent implements OnInit {
   }
 
   isLiveDataset(): boolean {
-    return this.selectedDataset?.id === MCA_COMPANY_MASTER_RESOURCE_ID;
+    return !!this.selectedDataset;
   }
 
   isSyncInProgress(): boolean {
@@ -527,7 +528,7 @@ export class ExplorerComponent implements OnInit {
         );
       }
 
-      if (!this.isLiveDataset() && stateTotal > 0) {
+      if (stateTotal > 0) {
         add(
           this.crossFilter.active ? 'Filtered total' : 'National total',
           this.crossFilter.active

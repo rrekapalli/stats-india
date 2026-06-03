@@ -1,13 +1,13 @@
 package org.example.service;
 
-import org.example.cache.DatasetCacheRepository;
 import org.example.dto.DatasetFilter;
-import org.example.dto.StateMetric;
 import org.example.dto.StateTimeSeries;
 import org.example.dto.StateTimeSeriesLine;
 import org.example.service.datagov.DatasetDimensionSpec;
 import org.example.service.datagov.GenericAggregateEngine;
-import org.example.service.datagov.McaCompanyMasterDatasetService;
+import org.example.service.datagov.IndianStateNormalizer;
+import org.example.service.datagov.LiveDatasetAggregationMode;
+import org.example.service.datagov.LiveDatasetDefinition;
 
 import java.time.Year;
 import java.util.ArrayList;
@@ -16,84 +16,25 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
-import java.util.function.Function;
-/** Builds {@link StateTimeSeries} from catalog snapshots or MCA cached rows. */
+
+/** Builds {@link StateTimeSeries} from cached live dataset rows. */
 public final class StateTimeSeriesBuilder {
 
     private StateTimeSeriesBuilder() {}
 
-    public static StateTimeSeries buildCatalogSeries(List<StateMetric> metrics, String unit) {
-        if (metrics == null || metrics.isEmpty()) {
-            return null;
-        }
-        int endYear = Year.now().getValue();
-        int startYear = endYear - (StateTimeSeries.MIN_YEARS_FOR_CHART - 1);
-        List<Integer> years = new ArrayList<>(StateTimeSeries.MIN_YEARS_FOR_CHART);
-        for (int year = startYear; year <= endYear; year++) {
-            years.add(year);
-        }
-        if (years.size() <= 4) {
-            return null;
-        }
-
-        List<StateTimeSeriesLine> lines = new ArrayList<>(metrics.size());
-        for (StateMetric metric : metrics) {
-            if (metric.value() <= 0) {
-                continue;
-            }
-            double[] profile = growthProfile(metric.state(), years.size());
-            List<Double> values = new ArrayList<>(years.size());
-            for (int i = 0; i < years.size(); i++) {
-                values.add(metric.value() * profile[i] / profile[profile.length - 1]);
-            }
-            lines.add(new StateTimeSeriesLine(metric.state(), metric.stateCode(), values));
-        }
-        if (lines.isEmpty()) {
-            return null;
-        }
-        return new StateTimeSeries(years, lines, unit);
-    }
-
-    public static StateTimeSeries buildMcaSeries(
-            DatasetCacheRepository cacheRepository,
-            String resourceId,
+    public static StateTimeSeries buildFromDefinition(
+            List<Map<String, String>> rows,
+            LiveDatasetDefinition def,
             List<DatasetFilter> filters
     ) {
-        Map<String, Map<Integer, Long>> byStateYear = new LinkedHashMap<>();
-        TreeSet<Integer> years = new TreeSet<>();
-        List<DatasetFilter> safeFilters = filters == null ? List.of() : filters;
-        List<DatasetDimensionSpec> specs = McaCompanyMasterDatasetService.getDimensionSpecs();
-
-        cacheRepository.forEachRecord(resourceId, row -> {
-            if (!GenericAggregateEngine.matchesAllFilters(row, safeFilters, specs)) {
-                return;
-            }
-            Integer year = parseYear(row.get("registrationDate"));
-            String state = McaCompanyMasterDatasetService.normalizeState(row.get("companyStateCode"));
-            if (year == null || state == null) {
-                return;
-            }
-            years.add(year);
-            byStateYear
-                    .computeIfAbsent(state, ignored -> new LinkedHashMap<>())
-                    .merge(year, 1L, Long::sum);
-        });
-
-        if (years.size() <= 4) {
+        if (def.yearRecordField() == null || def.yearRecordField().isBlank()) {
             return null;
         }
-
-        List<Integer> yearList = new ArrayList<>(years);
-        List<StateTimeSeriesLine> lines = byStateYear.entrySet().stream()
-                .sorted(Comparator.comparingLong((Map.Entry<String, Map<Integer, Long>> e) ->
-                        e.getValue().values().stream().mapToLong(Long::longValue).sum()).reversed())
-                .map(e -> toLine(e.getKey(), e.getValue(), yearList))
-                .toList();
-
-        if (lines.isEmpty()) {
-            return null;
-        }
-        return new StateTimeSeries(yearList, lines, "companies");
+        return switch (def.aggregationMode()) {
+            case COUNT_ROWS -> buildCountSeries(rows, def, filters);
+            case SUM_METRIC -> buildSumSeries(rows, def, filters);
+            case STATE_SNAPSHOT -> null;
+        };
     }
 
     public static StateTimeSeries scaleSeries(StateTimeSeries series, double factor) {
@@ -125,32 +66,111 @@ public final class StateTimeSeriesBuilder {
         return new StateTimeSeries(series.years(), match, series.unit());
     }
 
-    private static StateTimeSeriesLine toLine(
-            String state,
-            Map<Integer, Long> yearCounts,
-            List<Integer> years
+    private static StateTimeSeries buildCountSeries(
+            List<Map<String, String>> rows,
+            LiveDatasetDefinition def,
+            List<DatasetFilter> filters
     ) {
-        List<Double> values = new ArrayList<>(years.size());
-        for (Integer year : years) {
-            values.add((double) yearCounts.getOrDefault(year, 0L));
+        Map<String, Map<Integer, Long>> byStateYear = new LinkedHashMap<>();
+        TreeSet<Integer> years = new TreeSet<>();
+        List<DatasetFilter> safeFilters = filters == null ? List.of() : filters;
+        List<DatasetDimensionSpec> specs = def.allDimensionSpecs();
+
+        for (Map<String, String> row : rows) {
+            if (!GenericAggregateEngine.matchesAllFilters(row, safeFilters, specs)) {
+                continue;
+            }
+            Integer year = parseYear(row.get(def.yearRecordField()));
+            String state = IndianStateNormalizer.normalize(row.get(def.stateRecordField()));
+            if (year == null || state == null) {
+                continue;
+            }
+            years.add(year);
+            byStateYear.computeIfAbsent(state, ignored -> new LinkedHashMap<>())
+                    .merge(year, 1L, Long::sum);
         }
-        return new StateTimeSeriesLine(state, McaCompanyMasterDatasetService.stateCodeFor(state), values);
+        return toSeries(byStateYear, years, def.metricUnit());
     }
 
-    /** Deterministic growth curve ending at 1.0 for the latest year. */
-    private static double[] growthProfile(String state, int length) {
-        double[] profile = new double[length];
-        if (length == 1) {
-            profile[0] = 1.0;
-            return profile;
+    private static StateTimeSeries buildSumSeries(
+            List<Map<String, String>> rows,
+            LiveDatasetDefinition def,
+            List<DatasetFilter> filters
+    ) {
+        Map<String, Map<Integer, Double>> byStateYear = new LinkedHashMap<>();
+        TreeSet<Integer> years = new TreeSet<>();
+        List<DatasetFilter> safeFilters = filters == null ? List.of() : filters;
+        List<DatasetDimensionSpec> specs = def.allDimensionSpecs();
+
+        for (Map<String, String> row : rows) {
+            if (!GenericAggregateEngine.matchesAllFilters(row, safeFilters, specs)) {
+                continue;
+            }
+            Integer year = parseYear(row.get(def.yearRecordField()));
+            String state = IndianStateNormalizer.normalize(row.get(def.stateRecordField()));
+            double metric = parseDouble(row.get(def.metricRecordField()));
+            if (year == null || state == null || metric <= 0) {
+                continue;
+            }
+            years.add(year);
+            byStateYear.computeIfAbsent(state, ignored -> new LinkedHashMap<>())
+                    .merge(year, metric, Double::sum);
         }
-        long seed = state == null ? 0 : state.hashCode();
-        for (int i = 0; i < length; i++) {
-            double t = (double) i / (length - 1);
-            profile[i] = 0.5 + 0.5 * t + (Math.abs(seed + i * 31L) % 50) / 500.0;
+        return toSeriesDouble(byStateYear, years, def.metricUnit());
+    }
+
+    private static StateTimeSeries toSeries(
+            Map<String, Map<Integer, Long>> byStateYear,
+            TreeSet<Integer> years,
+            String unit
+    ) {
+        if (years.size() <= 4) {
+            return null;
         }
-        profile[length - 1] = 1.0;
-        return profile;
+        List<Integer> yearList = new ArrayList<>(years);
+        List<StateTimeSeriesLine> lines = byStateYear.entrySet().stream()
+                .sorted(Comparator.comparingLong((Map.Entry<String, Map<Integer, Long>> e) ->
+                        e.getValue().values().stream().mapToLong(Long::longValue).sum()).reversed())
+                .map(e -> {
+                    List<Double> values = new ArrayList<>(yearList.size());
+                    for (Integer year : yearList) {
+                        values.add((double) e.getValue().getOrDefault(year, 0L));
+                    }
+                    return new StateTimeSeriesLine(
+                            e.getKey(),
+                            IndianStateNormalizer.stateCodeFor(e.getKey()),
+                            values
+                    );
+                })
+                .toList();
+        return lines.isEmpty() ? null : new StateTimeSeries(yearList, lines, unit);
+    }
+
+    private static StateTimeSeries toSeriesDouble(
+            Map<String, Map<Integer, Double>> byStateYear,
+            TreeSet<Integer> years,
+            String unit
+    ) {
+        if (years.size() <= 4) {
+            return null;
+        }
+        List<Integer> yearList = new ArrayList<>(years);
+        List<StateTimeSeriesLine> lines = byStateYear.entrySet().stream()
+                .sorted(Comparator.comparingDouble((Map.Entry<String, Map<Integer, Double>> e) ->
+                        e.getValue().values().stream().mapToDouble(Double::doubleValue).sum()).reversed())
+                .map(e -> {
+                    List<Double> values = new ArrayList<>(yearList.size());
+                    for (Integer year : yearList) {
+                        values.add(e.getValue().getOrDefault(year, 0.0));
+                    }
+                    return new StateTimeSeriesLine(
+                            e.getKey(),
+                            IndianStateNormalizer.stateCodeFor(e.getKey()),
+                            values
+                    );
+                })
+                .toList();
+        return lines.isEmpty() ? null : new StateTimeSeries(yearList, lines, unit);
     }
 
     static Integer parseYear(String raw) {
@@ -169,5 +189,16 @@ public final class StateTimeSeriesBuilder {
             }
         }
         return null;
+    }
+
+    private static double parseDouble(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return 0;
+        }
+        try {
+            return Double.parseDouble(raw.replace(",", "").trim());
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 }

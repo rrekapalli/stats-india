@@ -7,7 +7,8 @@ import org.example.dto.DatasetDataResponse;
 import org.example.dto.DatasetFilter;
 import org.example.dto.DatasetSyncStatus;
 import org.example.dto.DimensionGroup;
-import org.example.service.datagov.McaCompanyMasterDatasetService;
+import org.example.service.datagov.CachedLiveDatasetService;
+import org.example.service.datagov.LiveDatasetRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -15,17 +16,17 @@ import java.util.List;
 @Service
 public class DatasetDataService {
 
-    private final McaCompanyMasterDatasetService mcaCompanyMasterDatasetService;
-    private final CatalogExploreService catalogExploreService;
+    private final CachedLiveDatasetService liveDatasetService;
+    private final LiveDatasetRegistry registry;
     private final DatasetSyncService datasetSyncService;
 
     public DatasetDataService(
-            McaCompanyMasterDatasetService mcaCompanyMasterDatasetService,
-            CatalogExploreService catalogExploreService,
+            CachedLiveDatasetService liveDatasetService,
+            LiveDatasetRegistry registry,
             DatasetSyncService datasetSyncService
     ) {
-        this.mcaCompanyMasterDatasetService = mcaCompanyMasterDatasetService;
-        this.catalogExploreService = catalogExploreService;
+        this.liveDatasetService = liveDatasetService;
+        this.registry = registry;
         this.datasetSyncService = datasetSyncService;
     }
 
@@ -36,11 +37,8 @@ public class DatasetDataService {
             boolean includeRecords,
             List<DatasetFilter> filters
     ) {
-        if (!McaCompanyMasterDatasetService.RESOURCE_ID.equals(resourceId)) {
-            throw new IllegalArgumentException("No live data provider registered for dataset: " + resourceId);
-        }
-
-        return mcaCompanyMasterDatasetService.getFromCache(offset, limit, includeRecords, filters);
+        requireLiveDataset(resourceId);
+        return liveDatasetService.getFromCache(resourceId, offset, limit, includeRecords, filters);
     }
 
     public DatasetDataResponse getDataset(String resourceId, int offset, int limit, boolean includeRecords) {
@@ -48,25 +46,21 @@ public class DatasetDataService {
     }
 
     public DatasetDataResponse getExploreSummary(String resourceId) {
-        DatasetDataResponse response = supportsLiveData(resourceId)
-                ? mcaCompanyMasterDatasetService.getExploreSummary()
-                : catalogExploreService.exploreSummary(resourceId);
-        return enrichDimensions(response);
+        requireLiveDataset(resourceId);
+        return enrichDimensions(liveDatasetService.getExploreSummary(resourceId));
     }
 
     public DatasetDataResponse getExploreFiltered(String resourceId, List<DatasetFilter> filters) {
-        if (supportsLiveData(resourceId)) {
-            return enrichDimensions(mcaCompanyMasterDatasetService.getExploreFiltered(filters));
-        }
+        requireLiveDataset(resourceId);
         if (filters == null || filters.isEmpty()) {
-            return enrichDimensions(catalogExploreService.exploreSummary(resourceId));
+            return getExploreSummary(resourceId);
         }
-        return enrichDimensions(catalogExploreService.exploreFiltered(resourceId, filters));
+        return enrichDimensions(liveDatasetService.getExploreFiltered(resourceId, filters));
     }
 
     public DatasetDataResponse getExploreRecords(String resourceId, int offset, int limit) {
         requireLiveDataset(resourceId);
-        return mcaCompanyMasterDatasetService.getExploreRecords(offset, limit);
+        return liveDatasetService.getExploreRecords(resourceId, offset, limit);
     }
 
     private DatasetDataResponse enrichDimensions(DatasetDataResponse response) {
@@ -90,9 +84,7 @@ public class DatasetDataService {
     }
 
     public DatasetSyncStatus getSyncStatus(String resourceId) {
-        if (!supportsLiveData(resourceId)) {
-            throw new IllegalArgumentException("No live data provider registered for dataset: " + resourceId);
-        }
+        requireLiveDataset(resourceId);
         return datasetSyncService.getMeta(resourceId)
                 .map(this::toSyncStatus)
                 .orElse(new DatasetSyncStatus(
@@ -107,14 +99,12 @@ public class DatasetDataService {
     }
 
     public void triggerSync(String resourceId) {
-        if (!supportsLiveData(resourceId)) {
-            throw new IllegalArgumentException("No live data provider registered for dataset: " + resourceId);
-        }
+        requireLiveDataset(resourceId);
         datasetSyncService.startSyncAsync(resourceId);
     }
 
     public boolean supportsLiveData(String resourceId) {
-        return McaCompanyMasterDatasetService.RESOURCE_ID.equals(resourceId);
+        return registry.isRegistered(resourceId);
     }
 
     private void requireLiveDataset(String resourceId) {
