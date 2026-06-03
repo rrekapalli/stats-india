@@ -218,7 +218,7 @@ export class ExplorerComponent implements OnInit {
       this.updateAccordionPanels(this.dimensions);
       return;
     }
-    if (!this.isLiveDataset() || !this.selectedDataset) {
+    if (!this.selectedDataset) {
       return;
     }
     const requestId = ++this.crossFilterRequestId;
@@ -496,8 +496,10 @@ export class ExplorerComponent implements OnInit {
 
       if (!this.isLiveDataset() && stateTotal > 0) {
         add(
-          'National total',
-          `Sum across all states${unit ? ` (${unit})` : ''}`,
+          this.crossFilter.active ? 'Filtered total' : 'National total',
+          this.crossFilter.active
+            ? `Matching applied filters${unit ? ` (${unit})` : ''}`
+            : `Sum across all states${unit ? ` (${unit})` : ''}`,
           stateTotal.toLocaleString(undefined, { maximumFractionDigits: 0 }),
           stateTotal,
           stateTotal,
@@ -534,7 +536,7 @@ export class ExplorerComponent implements OnInit {
   }
 
   mapTotalForPercent(): number {
-    if (this.crossFilter.active && this.isLiveDataset()) {
+    if (this.crossFilter.active && this.selectedDataset) {
       return this.stateMetricsTotal();
     }
     if (this.isLiveDataset() && this.recordsCached > 0) {

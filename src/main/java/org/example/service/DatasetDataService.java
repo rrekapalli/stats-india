@@ -55,10 +55,13 @@ public class DatasetDataService {
     }
 
     public DatasetDataResponse getExploreFiltered(String resourceId, List<DatasetFilter> filters) {
-        if (!supportsLiveData(resourceId)) {
+        if (supportsLiveData(resourceId)) {
+            return enrichDimensions(mcaCompanyMasterDatasetService.getExploreFiltered(filters));
+        }
+        if (filters == null || filters.isEmpty()) {
             return enrichDimensions(catalogExploreService.exploreSummary(resourceId));
         }
-        return enrichDimensions(mcaCompanyMasterDatasetService.getExploreFiltered(filters));
+        return enrichDimensions(catalogExploreService.exploreFiltered(resourceId, filters));
     }
 
     public DatasetDataResponse getExploreRecords(String resourceId, int offset, int limit) {

@@ -1,6 +1,7 @@
 package org.example.service;
 
 import org.example.cache.DatasetFetchStatus;
+import org.example.dto.DatasetFilter;
 import org.example.dto.DatasetDataResponse;
 import org.example.dto.DatasetSummary;
 import org.example.dto.DimensionGroup;
@@ -12,7 +13,8 @@ import java.util.List;
 /**
  * Produces a {@link DatasetDataResponse} for mock catalog datasets so the explorer can
  * use a single {@code /explore} contract regardless of whether the dataset is live or
- * sample data. Cross-filtering is a no-op for catalog entries.
+ * sample data. Cross-filtering scales mock aggregates proportionally via
+ * {@link CatalogExploreFilter}.
  */
 @Service
 public class CatalogExploreService {
@@ -45,5 +47,13 @@ public class CatalogExploreService {
                 null,
                 0L
         );
+    }
+
+    public DatasetDataResponse exploreFiltered(String resourceId, List<DatasetFilter> filters) {
+        DatasetDataResponse base = exploreSummary(resourceId);
+        if (filters == null || filters.isEmpty()) {
+            return base;
+        }
+        return CatalogExploreFilter.apply(base, filters);
     }
 }
