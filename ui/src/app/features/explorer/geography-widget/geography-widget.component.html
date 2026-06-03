@@ -1,7 +1,15 @@
 <div class="geo-widget">
+  <header class="geo-widget-header">
+    <span class="geo-widget-title">{{ mapTitle }}</span>
+    <button type="button" class="geo-reset-btn" (click)="resetMapZoom()" title="Reset zoom" aria-label="Reset map zoom">
+      ↺
+    </button>
+  </header>
+
   <div class="geo-widget-inner">
     <div class="geo-map-pane">
       <app-india-state-map
+        #stateMap
         [metrics]="metrics"
         [title]="mapTitle"
         [unit]="unit"
@@ -10,38 +18,37 @@
         [datasetCategory]="datasetCategory"
         [selectedState]="selectedState"
         [dimUnselected]="dimUnselected"
+        [compactInfoPanel]="true"
         [embedded]="true"
         (stateClick)="onStateClick($event)" />
     </div>
 
     <aside class="geo-ranking-pane" aria-label="State rankings">
       <header class="geo-ranking-header">States</header>
-      <div class="geo-ranking-scroll">
-        <ul class="geo-ranking-list">
-          @for (entry of rankedStates(); track entry.name) {
-            <li>
-              <button
-                type="button"
-                class="geo-rank-row"
-                [class.selected]="isRowSelected(entry)"
-                [class.dimmed]="isRowDimmed(entry)"
-                (click)="onStateClick(entry.name)">
-                <span class="geo-rank-label">
-                  <span class="geo-rank-num">{{ entry.rank }}.</span>
-                  <span class="geo-rank-name">{{ entry.name }}</span>
-                  <span class="geo-rank-metric">– {{ entry.valueLabel }}@if (unit) { {{ unit }} } ({{ entry.percentLabel }})</span>
-                </span>
-                <span class="geo-rank-track" aria-hidden="true">
-                  <span
-                    class="geo-rank-fill"
-                    [style.width.%]="entry.percentWidth"
-                    [style.background-color]="entry.color"></span>
-                </span>
-              </button>
-            </li>
-          }
-        </ul>
-      </div>
+      <ul class="geo-ranking-list">
+        @for (entry of rankedStates(); track entry.name) {
+          <li>
+            <button
+              type="button"
+              class="geo-rank-row"
+              [class.selected]="isRowSelected(entry)"
+              [class.dimmed]="isRowDimmed(entry)"
+              (click)="onStateClick(entry.name)">
+              <span class="geo-rank-bg" aria-hidden="true">
+                <span
+                  class="geo-rank-fill"
+                  [style.width.%]="entry.percentWidth"
+                  [style.background-color]="entry.color"></span>
+              </span>
+              <span class="geo-rank-label">
+                <span class="geo-rank-num">{{ entry.rank }}.</span>
+                <span class="geo-rank-name">{{ entry.name }}</span>
+                <span class="geo-rank-metric">– {{ entry.valueLabel }}@if (unit) { {{ unit }} } ({{ entry.percentLabel }})</span>
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
     </aside>
   </div>
 </div>

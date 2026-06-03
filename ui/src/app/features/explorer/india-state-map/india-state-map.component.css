@@ -111,6 +111,56 @@
   font-size: 0.52rem;
 }
 
+.map-info-panel-compact {
+  top: 0.2rem;
+  left: 0.2rem;
+  right: auto;
+  max-width: min(75%, 11rem);
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip {
+  border: none;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 0.12rem 0.2rem;
+  font-size: 0.48rem;
+  line-height: 1.15;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-title {
+  font-size: 0.5rem;
+  font-weight: 600;
+  margin-bottom: 0.04rem;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-value {
+  font-size: 0.5rem;
+  font-weight: 700;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-percent {
+  font-size: 0.46rem;
+  margin-top: 0.02rem;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-subtitle {
+  margin-top: 0.06rem;
+  font-size: 0.44rem;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-row {
+  padding: 0.03rem 0;
+  font-size: 0.44rem;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-rows {
+  margin-top: 0.08rem;
+}
+
+:host ::ng-deep .map-info-panel-compact .stats-tooltip-footer {
+  display: none;
+}
+
 .map-viewport:active {
   cursor: grabbing;
 }
@@ -144,9 +194,9 @@ svg {
 
 .map-legend-overlay {
   position: absolute;
-  right: 0.4rem;
+  left: 0.4rem;
   bottom: 0.4rem;
-  left: auto;
+  right: auto;
   z-index: 5;
   pointer-events: none;
   display: flex;

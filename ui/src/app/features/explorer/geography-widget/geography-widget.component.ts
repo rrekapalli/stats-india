@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, ViewChild } from '@angular/core';
 import { StateMetric } from '../../../models/dataset.models';
 import {
   formatCompactThousands,
@@ -37,6 +37,12 @@ export class GeographyWidgetComponent {
   @Input() dimUnselected = false;
 
   @Output() stateClick = new EventEmitter<string>();
+
+  @ViewChild('stateMap') private stateMap?: IndiaStateMapComponent;
+
+  resetMapZoom(): void {
+    this.stateMap?.resetZoom();
+  }
 
   rankedStates(): StateRankingEntry[] {
     const metricByState = new Map(

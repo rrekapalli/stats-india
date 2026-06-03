@@ -30,16 +30,23 @@ interface MapLocation {
   imports: [DecimalPipe],
   template: `
     <div class="map-shell" [class.map-shell-embedded]="embedded">
-      <div class="map-toolbar">
-        <span class="map-title">{{ title }}</span>
-        <div class="map-actions">
-          <button type="button" class="map-btn" (click)="resetZoom()" title="Reset zoom">
-            ↺
-          </button>
+      @if (!embedded) {
+        <div class="map-toolbar">
+          <span class="map-title">{{ title }}</span>
+          <div class="map-actions">
+            <button type="button" class="map-btn" (click)="resetZoom()" title="Reset zoom">
+              ↺
+            </button>
+          </div>
         </div>
-      </div>
+      }
       <div class="map-viewport" #viewport>
-        <div class="map-info-panel" [innerHTML]="infoPanelHtml"></div>
+        @if (!hideInfoPanel) {
+          <div
+            class="map-info-panel"
+            [class.map-info-panel-compact]="compactInfoPanel"
+            [innerHTML]="infoPanelHtml"></div>
+        }
         <div class="map-legend map-legend-overlay" aria-hidden="true">
           <span class="legend-bound">{{ legendMin | number:'1.0-0' }}</span>
           <div class="legend-bar"></div>
@@ -69,6 +76,8 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @Input() datasetCategory = '';
   @Input() selectedState: string | null = null;
   @Input() dimUnselected = false;
+  @Input() hideInfoPanel = false;
+  @Input() compactInfoPanel = false;
 
   @Output() stateClick = new EventEmitter<string>();
 
@@ -93,7 +102,9 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   ngAfterViewInit(): void {
     this.renderMap();
     this.setupZoom();
-    this.refreshInfoPanel();
+    if (!this.hideInfoPanel) {
+      this.refreshInfoPanel();
+    }
   }
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -101,7 +112,9 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       this.renderMap();
     }
     if (changes['metrics'] || changes['totalForPercent'] || changes['datasetTitle'] || changes['datasetCategory'] || changes['unit']) {
-      this.refreshInfoPanel();
+      if (!this.hideInfoPanel) {
+        this.refreshInfoPanel();
+      }
     }
   }
 
@@ -184,11 +197,15 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
     paths
       .on('mouseenter', (_event: MouseEvent, d) => {
         this.hoveredLocation = d;
-        this.updateInfoPanel(d, valueByState.get(this.normalizeName(d.name)), total);
+        if (!this.hideInfoPanel) {
+          this.updateInfoPanel(d, valueByState.get(this.normalizeName(d.name)), total);
+        }
       })
       .on('mouseleave', () => {
         this.hoveredLocation = null;
-        this.refreshInfoPanel();
+        if (!this.hideInfoPanel) {
+          this.refreshInfoPanel();
+        }
       });
 
     paths.on('click', (_event, d) => {
