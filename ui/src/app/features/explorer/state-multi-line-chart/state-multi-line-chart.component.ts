@@ -1,3 +1,4 @@
+import { CommonModule } from '@angular/common';
 import {
   AfterViewInit,
   ChangeDetectorRef,
@@ -25,7 +26,7 @@ import {
   select
 } from 'd3';
 import { StateTimeSeries } from '../../../models/dataset.models';
-import { formatCompactThousands } from '../../../shared/stats-metric-tooltip.util';
+import { formatCompactThousands, formatMetricPercent } from '../../../shared/stats-metric-tooltip.util';
 import { statePaletteColor } from '../geography-widget/state-color.util';
 
 interface SeriesPoint {
@@ -39,29 +40,19 @@ interface SeriesRow {
   points: SeriesPoint[];
 }
 
-interface HoverPoint {
+interface HoverSeriesEntry {
   state: string;
-  year: number;
-  value: number;
+  displayLabel: string;
+  valueLabel: string;
+  percentLabel: string;
+  color: string;
 }
 
 @Component({
   selector: 'app-state-multi-line-chart',
   standalone: true,
-  template: `
-    <div class="multi-line-host" #host>
-      <div class="multi-line-viewport" #viewport>
-        <div class="multi-line-hover-bar" [class.visible]="tooltipVisible">
-          <span class="hover-state">{{ tooltipState }}</span>
-          <span class="hover-sep" aria-hidden="true">·</span>
-          <span class="hover-year">{{ tooltipYear }}</span>
-          <span class="hover-sep" aria-hidden="true">·</span>
-          <span class="hover-value">{{ tooltipValue }}</span>
-        </div>
-        <svg #svg aria-label="State trends by year"></svg>
-      </div>
-    </div>
-  `,
+  imports: [CommonModule],
+  templateUrl: './state-multi-line-chart.component.html',
   styleUrl: './state-multi-line-chart.component.css'
 })
 export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, OnDestroy {
@@ -77,10 +68,8 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
 
-  tooltipVisible = false;
-  tooltipState = '';
-  tooltipYear = '';
-  tooltipValue = '';
+  hoverYear: number | null = null;
+  hoverEntry: HoverSeriesEntry | null = null;
 
   private resizeObserver: ResizeObserver | null = null;
   private pendingFrame: number | null = null;
@@ -125,6 +114,7 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
     const host = this.hostRef?.nativeElement;
     if (!svgEl || !host || !this.series?.years?.length || !this.series.lines?.length) {
       select(svgEl).selectAll('*').remove();
+      this.clearHover();
       return;
     }
 
@@ -139,7 +129,7 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       top: Math.round(height * 0.08),
       right: Math.round(width * 0.1),
       bottom: Math.max(28, Math.round(height * 0.12)),
-      left: Math.round(width * 0.02)
+      left: Math.round(width * 0.05)
     };
     const innerWidth = Math.max(width - margin.left - margin.right, 80);
     const innerHeight = Math.max(height - margin.top - margin.bottom, 60);
@@ -222,7 +212,7 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       .attr('stroke', d => color(d.state) ?? '#64748b')
       .attr('stroke-width', d => this.strokeWidth(d.state))
       .attr('opacity', d => this.lineOpacity(d.state))
-      .style('cursor', 'pointer');
+      .style('pointer-events', 'none');
 
     const endLabels = g
       .selectAll<SVGTextElement, SeriesRow>('text.line-end-label')
@@ -245,6 +235,22 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       .attr('pointer-events', 'none')
       .text(d => this.endLabelText(d));
 
+    const focus = g.append('g').attr('class', 'focus').style('opacity', 0);
+
+    const focusLine = focus
+      .append('line')
+      .attr('class', 'focus-line')
+      .attr('y1', 0)
+      .attr('y2', innerHeight);
+
+    const focusDots = focus
+      .selectAll<SVGCircleElement, SeriesRow>('circle.focus-dot')
+      .data(seriesData, d => d.state)
+      .join('circle')
+      .attr('class', 'focus-dot')
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5);
+
     const refreshStyles = (): void => {
       paths
         .attr('stroke-width', d => this.strokeWidth(d.state))
@@ -254,25 +260,74 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
         .attr('font-weight', d => (this.hoveredState === d.state || this.selectedState === d.state ? 600 : 400));
     };
 
-    const showHover = (point: HoverPoint): void => {
-      this.hoveredState = point.state;
-      this.showTooltip(point);
+    const nearestYear = (mx: number): number => {
+      const year = Math.round(x.invert(mx));
+      return years.reduce((best, candidate) =>
+        Math.abs(candidate - year) < Math.abs(best - year) ? candidate : best, years[0]);
+    };
+
+    const showAtYear = (mx: number, my: number): void => {
+      const clampedYear = nearestYear(mx);
+      const yearIndex = years.indexOf(clampedYear);
+      if (yearIndex < 0) {
+        return;
+      }
+
+      const xPos = x(clampedYear);
+      let nearestRow: SeriesRow | null = null;
+      let nearestValue = 0;
+      let nearestDistance = Infinity;
+      let yearTotal = 0;
+
+      for (const entry of seriesData) {
+        if (!this.isLineVisible(entry.state)) {
+          continue;
+        }
+        const value = entry.points[yearIndex]?.value ?? 0;
+        yearTotal += value;
+        const cy = y(value);
+        const distance = Math.abs(my - cy) + Math.abs(mx - xPos) * 0.01;
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestRow = entry;
+          nearestValue = value;
+        }
+      }
+
+      if (!nearestRow) {
+        return;
+      }
+
+      const nearestState = nearestRow.state;
+      this.hoveredState = nearestState;
+      this.hoverYear = clampedYear;
+      this.hoverEntry = {
+        state: nearestState,
+        displayLabel: nearestRow.state,
+        valueLabel: `${formatCompactThousands(nearestValue)}${this.unit ? ` ${this.unit}` : ''}`,
+        percentLabel: formatMetricPercent(nearestValue, yearTotal) ?? '0%',
+        color: color(nearestState) ?? '#64748b'
+      };
+      this.cdr.markForCheck();
+
+      focus.style('opacity', 1);
+      focusLine.attr('x1', xPos).attr('x2', xPos);
+      focusDots
+        .attr('cx', xPos)
+        .attr('cy', d => y(d.points[yearIndex]?.value ?? 0))
+        .attr('fill', d => color(d.state) ?? '#64748b')
+        .attr('r', d => (d.state === nearestState ? 4 : 0))
+        .attr('opacity', d => (d.state === nearestState ? 1 : 0));
+
       refreshStyles();
     };
 
-    paths
-      .on('mouseenter', (_event, d) => {
-        const last = d.points[d.points.length - 1];
-        showHover({ state: d.state, year: last.year, value: last.value });
-      })
-      .on('mouseleave', () => {
-        this.hoveredState = null;
-        this.hideTooltip();
-        refreshStyles();
-      })
-      .on('click', (_event, d) => {
-        this.stateClick.emit(d.state);
-      });
+    const hideFocus = (): void => {
+      focus.style('opacity', 0);
+      this.hoveredState = null;
+      this.clearHover();
+      refreshStyles();
+    };
 
     const overlay = g
       .append('rect')
@@ -282,35 +337,19 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       .attr('fill', 'transparent')
       .style('cursor', 'crosshair');
 
-    overlay.on('mousemove', (event: MouseEvent) => {
-      const [mx] = pointer(event, overlay.node() as Element);
-      const year = Math.round(x.invert(mx));
-      const clampedYear = years.reduce((best, yYear) =>
-        Math.abs(yYear - year) < Math.abs(best - year) ? yYear : best, years[0]);
-      const yearIndex = years.indexOf(clampedYear);
-      if (yearIndex < 0) {
-        return;
-      }
-      let best: HoverPoint | null = null;
-      for (const entry of seriesData) {
-        if (!this.isLineVisible(entry.state)) {
-          continue;
+    overlay
+      .on('mousemove', (event: MouseEvent) => {
+        const [mx, my] = pointer(event, overlay.node() as Element);
+        showAtYear(mx, my);
+      })
+      .on('mouseleave', () => {
+        hideFocus();
+      })
+      .on('click', () => {
+        if (this.hoveredState) {
+          this.stateClick.emit(this.hoveredState);
         }
-        const value = entry.points[yearIndex]?.value ?? 0;
-        if (!best || value > best.value) {
-          best = { state: entry.state, year: clampedYear, value };
-        }
-      }
-      if (best) {
-        showHover(best);
-      }
-    });
-
-    overlay.on('mouseleave', () => {
-      this.hoveredState = null;
-      this.hideTooltip();
-      refreshStyles();
-    });
+      });
   }
 
   private endLabelText(row: SeriesRow): string {
@@ -364,16 +403,9 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
     return this.selectedState === state;
   }
 
-  private showTooltip(point: HoverPoint): void {
-    this.tooltipState = point.state;
-    this.tooltipYear = String(point.year);
-    this.tooltipValue = `${formatCompactThousands(point.value)}${this.unit ? ` ${this.unit}` : ''}`;
-    this.tooltipVisible = true;
-    this.cdr.markForCheck();
-  }
-
-  private hideTooltip(): void {
-    this.tooltipVisible = false;
+  private clearHover(): void {
+    this.hoverYear = null;
+    this.hoverEntry = null;
     this.cdr.markForCheck();
   }
 }

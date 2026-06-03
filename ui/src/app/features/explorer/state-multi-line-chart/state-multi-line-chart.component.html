@@ -1,0 +1,16 @@
+<div class="multi-line-host" #host>
+  <div class="multi-line-viewport" #viewport>
+    <div class="multi-line-hover-bar" [class.visible]="hoverEntry !== null">
+      @if (hoverEntry && hoverYear !== null) {
+        <span class="hover-year-label">{{ hoverYear }}</span>
+        <span class="hover-chip">
+          <span class="hover-swatch" [style.background-color]="hoverEntry.color"></span>
+          <span class="hover-name">{{ hoverEntry.displayLabel }}</span>
+          <span class="hover-val">{{ hoverEntry.valueLabel }}</span>
+          <span class="hover-pct">({{ hoverEntry.percentLabel }} of total)</span>
+        </span>
+      }
+    </div>
+    <svg #svg aria-label="State trends by year"></svg>
+  </div>
+</div>
