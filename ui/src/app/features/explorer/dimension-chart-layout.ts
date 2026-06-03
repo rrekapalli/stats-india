@@ -1,6 +1,5 @@
 import { DimensionGroup, DimensionItem, DimensionRole } from '../../models/dataset.models';
 import { BarChartItem } from './bar-chart/bar-chart.component';
-import { PieChartItem } from './pie-chart/pie-chart.component';
 
 /**
  * Legacy fallback used when {@link DimensionGroup.role} is not set by the server.
@@ -15,9 +14,13 @@ export const RESERVED_DIMENSION_IDS = new Set([
   'location'
 ]);
 
-export const PIE_CHART_MAX_VALUES = 5;
+/** Max distinct values for the horizontal bar slot; above this uses vertical bar. */
+export const LOW_CARDINALITY_BAR_MAX = 5;
 
-export type SlotChartType = 'pie' | 'bar-vertical';
+/** @deprecated Use {@link LOW_CARDINALITY_BAR_MAX}. */
+export const PIE_CHART_MAX_VALUES = LOW_CARDINALITY_BAR_MAX;
+
+export type SlotChartType = 'bar-horizontal' | 'bar-vertical';
 
 export interface VisualizationSlot {
   dimensionId: string;
@@ -27,7 +30,7 @@ export interface VisualizationSlot {
 }
 
 export interface DimensionChartSlots {
-  pie: DimensionGroup | null;
+  horizontalBar: DimensionGroup | null;
   bar: DimensionGroup | null;
 }
 
@@ -52,7 +55,7 @@ function labeledItems(group: DimensionGroup): DimensionItem[] {
   return group.items.filter(item => item.label?.trim());
 }
 
-/** True if the dimension is handled by map / state bar / KPI tiles (not pie/bar slots). */
+/** True if the dimension is handled by map / state bar / KPI tiles (not chart slots). */
 function isReservedForFixedSlots(group: DimensionGroup): boolean {
   if (group.role) {
     return RESERVED_ROLES.has(group.role);
@@ -72,7 +75,7 @@ export function distinctValueCount(group: DimensionGroup): number {
   return labeledItems(group).length;
 }
 
-/** Dimension groups suitable for pie or bar chart slots. */
+/** Dimension groups suitable for horizontal or vertical bar chart slots. */
 export function chartableDimensionGroups(dimensions: DimensionGroup[]): DimensionGroup[] {
   return dimensions.filter(group => {
     if (isReservedForFixedSlots(group)) {
@@ -90,54 +93,60 @@ export function chartableDimensionGroups(dimensions: DimensionGroup[]): Dimensio
 }
 
 /**
- * Pick concrete chart slots from a dataset's dimensions. First categorical group with
- * cardinality &le; {@link PIE_CHART_MAX_VALUES} fills the pie slot; the next group with a
- * higher cardinality fills the vertical bar slot. Geography/temporal/summary/measure are
- * always reserved for the map, KPI tiles, and horizontal states bar.
+ * Pick concrete chart slots from a dataset's dimensions in server order. The first chartable
+ * group with cardinality &gt; {@link LOW_CARDINALITY_BAR_MAX} fills the top-right vertical
+ * bar slot; the next chartable group with 2–{@link LOW_CARDINALITY_BAR_MAX} values (excluding
+ * the vertical bar dimension) fills the horizontal bar slot below it.
  */
 export function resolveVisualizationSlots(dimensions: DimensionGroup[]): VisualizationSlot[] {
-  const chartable = [...chartableDimensionGroups(dimensions)].sort((a, b) => {
-    const ca = distinctValueCount(a);
-    const cb = distinctValueCount(b);
-    if (ca !== cb) {
-      return ca - cb;
-    }
-    return a.label.localeCompare(b.label);
-  });
+  const chartableIds = new Set(chartableDimensionGroups(dimensions).map(group => group.id));
+  const ordered = dimensions.filter(group => chartableIds.has(group.id));
 
-  const slots: VisualizationSlot[] = [];
-  let pieTaken = false;
-  let barTaken = false;
+  let verticalBarSlot: VisualizationSlot | null = null;
+  let horizontalBarSlot: VisualizationSlot | null = null;
 
-  for (const group of chartable) {
+  for (const group of ordered) {
     const cardinality = distinctValueCount(group);
-    if (!pieTaken && cardinality >= 2 && cardinality <= PIE_CHART_MAX_VALUES) {
-      slots.push({ dimensionId: group.id, label: group.label, chartType: 'pie', cardinality });
-      pieTaken = true;
-      continue;
-    }
-    if (!barTaken && cardinality > PIE_CHART_MAX_VALUES) {
-      slots.push({
+    if (!verticalBarSlot && cardinality > LOW_CARDINALITY_BAR_MAX) {
+      verticalBarSlot = {
         dimensionId: group.id,
         label: group.label,
         chartType: 'bar-vertical',
         cardinality
-      });
-      barTaken = true;
+      };
     }
   }
 
-  return slots;
+  for (const group of ordered) {
+    if (verticalBarSlot?.dimensionId === group.id) {
+      continue;
+    }
+    const cardinality = distinctValueCount(group);
+    if (
+      !horizontalBarSlot &&
+      cardinality >= 2 &&
+      cardinality <= LOW_CARDINALITY_BAR_MAX
+    ) {
+      horizontalBarSlot = {
+        dimensionId: group.id,
+        label: group.label,
+        chartType: 'bar-horizontal',
+        cardinality
+      };
+    }
+  }
+
+  return [verticalBarSlot, horizontalBarSlot].filter((slot): slot is VisualizationSlot => slot != null);
 }
 
 /** @deprecated Use {@link resolveVisualizationSlots} instead. Kept for callers in transition. */
 export function resolveDimensionChartSlots(dimensions: DimensionGroup[]): DimensionChartSlots {
   const slots = resolveVisualizationSlots(dimensions);
   const groupsById = new Map(dimensions.map(d => [d.id, d] as const));
-  const pieSlot = slots.find(s => s.chartType === 'pie');
+  const horizontalSlot = slots.find(s => s.chartType === 'bar-horizontal');
   const barSlot = slots.find(s => s.chartType === 'bar-vertical');
   return {
-    pie: pieSlot ? groupsById.get(pieSlot.dimensionId) ?? null : null,
+    horizontalBar: horizontalSlot ? groupsById.get(horizontalSlot.dimensionId) ?? null : null,
     bar: barSlot ? groupsById.get(barSlot.dimensionId) ?? null : null
   };
 }
@@ -197,17 +206,6 @@ export function dimensionToBarItems(
   group: DimensionGroup,
   options?: DimensionBreakdownOptions
 ): BarChartItem[] {
-  return dimensionBreakdown(group, options).map(row => ({
-    id: row.label,
-    label: row.label,
-    value: row.count
-  }));
-}
-
-export function dimensionToPieItems(
-  group: DimensionGroup,
-  options?: DimensionBreakdownOptions
-): PieChartItem[] {
   return dimensionBreakdown(group, options).map(row => ({
     id: row.label,
     label: row.label,

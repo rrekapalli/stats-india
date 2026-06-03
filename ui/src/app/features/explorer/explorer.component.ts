@@ -20,7 +20,6 @@ import {
 } from '../../models/dataset.models';
 import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
 import { GeographyWidgetComponent } from './geography-widget/geography-widget.component';
-import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
 import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
 import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
 import {
@@ -32,7 +31,6 @@ import {
   dimensionGroupTotal,
   DimensionBreakdownOptions,
   dimensionToBarItems,
-  dimensionToPieItems,
   resolveVisualizationSlots,
   VisualizationSlot
 } from './dimension-chart-layout';
@@ -65,7 +63,6 @@ interface GlanceTile {
     TooltipModule,
     BarChartComponent,
     GeographyWidgetComponent,
-    PieChartComponent,
     ExplorerFilterChipsComponent
   ],
   templateUrl: './explorer.component.html',
@@ -332,11 +329,6 @@ export class ExplorerComponent implements OnInit {
     return this.dimensionGroup(slot.dimensionId);
   }
 
-  slotPieItems(slot: VisualizationSlot): PieChartItem[] {
-    const group = this.slotGroup(slot);
-    return group ? dimensionToPieItems(group, this.chartBreakdownOptions()) : [];
-  }
-
   slotBarItems(slot: VisualizationSlot): BarChartItem[] {
     const group = this.slotGroup(slot);
     return group ? dimensionToBarItems(group, this.chartBreakdownOptions()) : [];
@@ -359,7 +351,7 @@ export class ExplorerComponent implements OnInit {
     return [];
   }
 
-  onSlotItemClick(slot: VisualizationSlot, item: BarChartItem | PieChartItem): void {
+  onSlotItemClick(slot: VisualizationSlot, item: BarChartItem): void {
     this.addCrossFilter(slot.dimensionId, item.label, slot.label);
   }
 

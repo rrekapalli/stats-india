@@ -119,19 +119,24 @@
 
                 @for (slot of visualizationSlots(); track slot.dimensionId) {
                   @switch (slot.chartType) {
-                    @case ('pie') {
-                      <article class="dashboard-widget widget-category">
+                    @case ('bar-horizontal') {
+                      <article class="dashboard-widget widget-bar-horizontal">
                         <header class="widget-header">{{ slot.label }}</header>
                         <div class="widget-body widget-chart-body">
-                          @if (slotPieItems(slot).length) {
-                            <app-pie-chart
-                              [items]="slotPieItems(slot)"
+                          @if (slotBarItems(slot).length) {
+                            <app-bar-chart
+                              orientation="horizontal"
+                              [staticInfoPanel]="true"
+                              infoPanelAnchor="bottom-right"
+                              [summaryTitle]="'All ' + slot.label.toLowerCase()"
+                              [items]="slotBarItems(slot)"
+                              [selectedIds]="dimensionBarSelectedIds(slot.dimensionId)"
+                              [dimmedIds]="dimensionBarDimmedIds(slot.dimensionId)"
                               [unit]="stateMetrics[0]?.unit ?? 'records'"
                               [total]="slotTotal(slot)"
-                              [summaryTitle]="'All ' + slot.label.toLowerCase()"
                               [datasetTitle]="datasetTitleLabel()"
                               [datasetCategory]="datasetCategoryLabel()"
-                              (sliceClick)="onSlotItemClick(slot, $event)" />
+                              (barClick)="onSlotItemClick(slot, $event)" />
                           } @else {
                             <p class="muted widget-empty">No breakdown available for {{ slot.label.toLowerCase() }}.</p>
                           }
