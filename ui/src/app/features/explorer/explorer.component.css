@@ -394,15 +394,15 @@
   overflow: hidden;
 }
 
-.widget-map {
-  grid-column: 1 / 6;
-  grid-row: 2 / 16;
+.widget-geography {
+  grid-column: 1 / 7;
+  grid-row: 2 / 20;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
-.widget-map app-india-state-map {
+.widget-geography app-geography-widget {
   display: block;
   flex: 1 1 0;
   min-height: 0;
@@ -410,8 +410,8 @@
 }
 
 .widget-category {
-  grid-column: 6 / 9;
-  grid-row: 2 / 10;
+  grid-column: 7 / 10;
+  grid-row: 2 / 12;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -422,8 +422,8 @@
 }
 
 .widget-status {
-  grid-column: 1 / 6;
-  grid-row: 16 / 26;
+  grid-column: 1 / 7;
+  grid-row: 20 / 26;
 }
 
 .widget-status .widget-body.widget-chart-body {
@@ -435,8 +435,8 @@
   min-height: 0;
 }
 
-.widget-states {
-  grid-column: 9 / -1;
+.dashboard-widget.widget-bar-vertical {
+  grid-column: 7 / -1;
   grid-row: 2 / 26;
 }
 
@@ -452,10 +452,6 @@
 .widget-chart-body app-bar-chart {
   flex: 1 1 0;
   min-height: 0;
-}
-
-.widget-states-scroll {
-  overflow: hidden;
 }
 
 .bar-list {
@@ -660,10 +656,10 @@
   }
 
   .kpi-strip,
-  .widget-map,
+  .widget-geography,
   .widget-category,
   .widget-status,
-  .widget-states {
+  .widget-bar-vertical {
     grid-column: 1 / -1;
     grid-row: auto;
   }
@@ -672,16 +668,12 @@
     min-height: 200px;
   }
 
-  .widget-map {
-    min-height: 280px;
+  .widget-geography {
+    min-height: 360px;
   }
 
   .widget-status {
     min-height: 200px;
-  }
-
-  .widget-states {
-    min-height: 240px;
   }
 
   .main-content.left-drawer-open,

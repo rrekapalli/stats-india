@@ -18,12 +18,11 @@ import {
   MCA_COMPANY_MASTER_RESOURCE_ID,
   StateMetric
 } from '../../models/dataset.models';
-import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
 import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
+import { GeographyWidgetComponent } from './geography-widget/geography-widget.component';
 import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
 import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
 import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
-import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
   sumValues
@@ -64,8 +63,8 @@ interface GlanceTile {
     ScrollPanelModule,
     TagModule,
     TooltipModule,
-    IndiaStateMapComponent,
     BarChartComponent,
+    GeographyWidgetComponent,
     PieChartComponent,
     ExplorerFilterChipsComponent
   ],
@@ -364,31 +363,9 @@ export class ExplorerComponent implements OnInit {
     this.addCrossFilter(slot.dimensionId, item.label, slot.label);
   }
 
-  allStateBarItems(): BarChartItem[] {
-    const metricByState = new Map(
-      this.stateMetrics.map(m => [normalizeStateName(m.state), m])
-    );
-    return INDIA_STATE_NAMES.map(name => {
-      const metric = metricByState.get(normalizeStateName(name));
-      return {
-        id: name,
-        label: name,
-        value: metric?.value ?? 0
-      };
-    }).sort((a, b) => b.value - a.value);
-  }
-
   crossFilterSelectedState(): string | null {
     const values = this.crossFilter.selectedValues('state');
     return values.length ? values[0] : null;
-  }
-
-  stateBarSelectedIds(): string[] {
-    return this.crossFilter.selectedValues('state');
-  }
-
-  stateBarDimmedIds(): string[] {
-    return [];
   }
 
   mapDimUnselected(): boolean {
@@ -397,10 +374,6 @@ export class ExplorerComponent implements OnInit {
 
   onMapStateClick(stateName: string): void {
     this.addCrossFilter('state', stateName, 'State');
-  }
-
-  onStateBarClick(item: BarChartItem): void {
-    this.addCrossFilter('state', item.label, 'State');
   }
 
   clearCrossFilters(): void {

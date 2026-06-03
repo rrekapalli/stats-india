@@ -116,17 +116,16 @@
                   }
                 </div>
 
-                <article class="dashboard-widget widget-map">
-                  <app-india-state-map
+                <article class="dashboard-widget widget-geography">
+                  <app-geography-widget
                     [metrics]="stateMetrics"
-                    [title]="mapWidgetTitle()"
+                    [mapTitle]="mapWidgetTitle()"
                     [unit]="stateMetrics[0]?.unit ?? ''"
                     [totalForPercent]="mapTotalForPercent()"
                     [datasetTitle]="datasetTitleLabel()"
                     [datasetCategory]="datasetCategoryLabel()"
                     [selectedState]="crossFilterSelectedState()"
                     [dimUnselected]="mapDimUnselected()"
-                    [embedded]="true"
                     (stateClick)="onMapStateClick($event)" />
                 </article>
 
@@ -152,7 +151,7 @@
                       </article>
                     }
                     @case ('bar-vertical') {
-                      <article class="dashboard-widget widget-status">
+                      <article class="dashboard-widget widget-bar-vertical">
                         <header class="widget-header">{{ slot.label }}</header>
                         <div class="widget-body widget-chart-body">
                           @if (slotBarItems(slot).length) {
@@ -178,24 +177,6 @@
                   }
                 }
 
-                <article class="dashboard-widget widget-states">
-                  <header class="widget-header">States</header>
-                  <div class="widget-body widget-chart-body widget-states-scroll">
-                    <app-bar-chart
-                      orientation="horizontal"
-                      [staticInfoPanel]="true"
-                      infoPanelAnchor="bottom-right"
-                      summaryTitle="All states"
-                      [items]="allStateBarItems()"
-                      [selectedIds]="stateBarSelectedIds()"
-                      [dimmedIds]="stateBarDimmedIds()"
-                      [unit]="stateMetrics[0]?.unit ?? ''"
-                      [total]="mapTotalForPercent()"
-                      [datasetTitle]="datasetTitleLabel()"
-                      [datasetCategory]="datasetCategoryLabel()"
-                      (barClick)="onStateBarClick($event)" />
-                  </div>
-                </article>
               }
             </div>
             </div>

@@ -1,0 +1,47 @@
+<div class="geo-widget">
+  <div class="geo-widget-inner">
+    <div class="geo-map-pane">
+      <app-india-state-map
+        [metrics]="metrics"
+        [title]="mapTitle"
+        [unit]="unit"
+        [totalForPercent]="totalForPercent"
+        [datasetTitle]="datasetTitle"
+        [datasetCategory]="datasetCategory"
+        [selectedState]="selectedState"
+        [dimUnselected]="dimUnselected"
+        [embedded]="true"
+        (stateClick)="onStateClick($event)" />
+    </div>
+
+    <aside class="geo-ranking-pane" aria-label="State rankings">
+      <header class="geo-ranking-header">States</header>
+      <div class="geo-ranking-scroll">
+        <ul class="geo-ranking-list">
+          @for (entry of rankedStates(); track entry.name) {
+            <li>
+              <button
+                type="button"
+                class="geo-rank-row"
+                [class.selected]="isRowSelected(entry)"
+                [class.dimmed]="isRowDimmed(entry)"
+                (click)="onStateClick(entry.name)">
+                <span class="geo-rank-label">
+                  <span class="geo-rank-num">{{ entry.rank }}.</span>
+                  <span class="geo-rank-name">{{ entry.name }}</span>
+                  <span class="geo-rank-metric">– {{ entry.valueLabel }}@if (unit) { {{ unit }} } ({{ entry.percentLabel }})</span>
+                </span>
+                <span class="geo-rank-track" aria-hidden="true">
+                  <span
+                    class="geo-rank-fill"
+                    [style.width.%]="entry.percentWidth"
+                    [style.background-color]="entry.color"></span>
+                </span>
+              </button>
+            </li>
+          }
+        </ul>
+      </div>
+    </aside>
+  </div>
+</div>
