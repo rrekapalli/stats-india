@@ -53,11 +53,13 @@
   position: relative;
 }
 
-.map-html-tooltip {
+.map-info-panel {
   position: absolute;
+  top: 0.45rem;
+  left: 0.45rem;
   z-index: 5;
   pointer-events: none;
-  max-width: min(92vw, 280px);
+  max-width: min(92%, 280px);
 }
 
 .map-viewport:active {

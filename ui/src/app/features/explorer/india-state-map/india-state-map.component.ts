@@ -39,16 +39,11 @@ interface MapLocation {
         </div>
       </div>
       <div class="map-viewport" #viewport>
+        <div class="map-info-panel" [innerHTML]="infoPanelHtml"></div>
         <svg #svg [attr.viewBox]="viewBox" preserveAspectRatio="xMidYMid meet" role="img"
              aria-label="Zoomable India state map">
           <g #zoomLayer></g>
         </svg>
-        @if (tooltipVisible) {
-          <div class="map-html-tooltip"
-               [innerHTML]="tooltipHtml"
-               [style.left.px]="tooltipX"
-               [style.top.px]="tooltipY"></div>
-        }
       </div>
       <div class="map-legend">
         <span>{{ legendMin | number:'1.0-1' }}</span>
@@ -83,21 +78,23 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   legendMin = 0;
   legendMax = 100;
 
-  tooltipVisible = false;
-  tooltipHtml = '';
-  tooltipX = 0;
-  tooltipY = 0;
+  infoPanelHtml = '';
 
   private zoomBehavior: ReturnType<typeof zoom<SVGSVGElement, unknown>> | null = null;
+  private hoveredLocation: MapLocation | null = null;
 
   ngAfterViewInit(): void {
     this.renderMap();
     this.setupZoom();
+    this.refreshInfoPanel();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (this.zoomLayerRef && (changes['metrics'] || changes['totalForPercent'] || changes['selectedState'] || changes['dimUnselected'])) {
       this.renderMap();
+    }
+    if (changes['metrics'] || changes['totalForPercent'] || changes['datasetTitle'] || changes['datasetCategory'] || changes['unit']) {
+      this.refreshInfoPanel();
     }
   }
 
@@ -178,15 +175,13 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       .style('cursor', 'pointer');
 
     paths
-      .on('mouseenter', (event: MouseEvent, d) => {
-        this.showTooltip(event, d, valueByState.get(this.normalizeName(d.name)), total);
-      })
-      .on('mousemove', (event: MouseEvent, d) => {
-        this.showTooltip(event, d, valueByState.get(this.normalizeName(d.name)), total);
+      .on('mouseenter', (_event: MouseEvent, d) => {
+        this.hoveredLocation = d;
+        this.updateInfoPanel(d, valueByState.get(this.normalizeName(d.name)), total);
       })
       .on('mouseleave', () => {
-        this.tooltipVisible = false;
-        this.cdr.markForCheck();
+        this.hoveredLocation = null;
+        this.refreshInfoPanel();
       });
 
     paths.on('click', (_event, d) => {
@@ -207,18 +202,59 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
     return !this.selectedState || this.selectedState !== stateName;
   }
 
-  private showTooltip(
-    event: MouseEvent,
+  private refreshInfoPanel(): void {
+    if (this.hoveredLocation) {
+      const valueByState = new Map(this.metrics.map(m => [this.normalizeName(m.state), m]));
+      const total = this.resolveTotal();
+      this.updateInfoPanel(
+        this.hoveredLocation,
+        valueByState.get(this.normalizeName(this.hoveredLocation.name)),
+        total
+      );
+      return;
+    }
+    this.infoPanelHtml = this.buildNationSummaryHtml(this.resolveTotal());
+    this.cdr.markForCheck();
+  }
+
+  private resolveTotal(): number {
+    const values = this.metrics.map(m => m.value);
+    if (this.totalForPercent > 0) {
+      return this.totalForPercent;
+    }
+    return values.reduce((sum, v) => sum + v, 0);
+  }
+
+  private buildNationSummaryHtml(total: number): string {
+    const nationalTotal = this.metrics.reduce((sum, m) => sum + m.value, 0);
+    const statesWithData = this.metrics.filter(m => m.value > 0).length;
+    const top = [...this.metrics].sort((a, b) => b.value - a.value)[0];
+    const rows: { label: string; value: string }[] = [
+      { label: 'States / UTs', value: String(this.metrics.length) },
+      { label: 'With data', value: String(statesWithData) }
+    ];
+    if (top) {
+      rows.push({ label: 'Top state', value: `${top.state} (${top.value.toLocaleString()})` });
+    }
+    return buildMetricTooltipHtml({
+      title: 'India (national)',
+      value: nationalTotal,
+      total,
+      unit: this.unit,
+      subtitle: 'Hover a state for regional detail',
+      datasetTitle: this.datasetTitle,
+      category: this.datasetCategory,
+      rows
+    });
+  }
+
+  private updateInfoPanel(
     location: MapLocation,
     metric: StateMetric | undefined,
     total: number
   ): void {
-    const rect = this.viewportRef.nativeElement.getBoundingClientRect();
-    this.tooltipX = event.clientX - rect.left + 12;
-    this.tooltipY = event.clientY - rect.top + 12;
-
     if (!metric) {
-      this.tooltipHtml = buildMetricTooltipHtml({
+      this.infoPanelHtml = buildMetricTooltipHtml({
         title: location.name,
         value: 'No data',
         subtitle: 'Not present in this dataset sample',
@@ -226,7 +262,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
         category: this.datasetCategory
       });
     } else {
-      this.tooltipHtml = buildMetricTooltipHtml({
+      this.infoPanelHtml = buildMetricTooltipHtml({
         title: metric.state,
         value: metric.value,
         total,
@@ -237,8 +273,6 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
         rows: metric.year ? [{ label: 'Period', value: metric.year }] : []
       });
     }
-
-    this.tooltipVisible = true;
     this.cdr.markForCheck();
   }
 

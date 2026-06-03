@@ -116,27 +116,39 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
 
     const isHorizontal = this.orientation === 'horizontal';
     const hostSize = this.measureHostSize();
-    const width = hostSize.width;
 
     if (!isHorizontal && hostSize.height < 40) {
       this.scheduleRender();
       return;
     }
 
+    const viewportRect = viewport.getBoundingClientRect();
+    const viewportWidth = Math.max(Math.floor(viewportRect.width), 120);
+    const viewportHeight = Math.max(Math.floor(viewportRect.height), 80);
+    const chartWidth = isHorizontal ? hostSize.width : viewportWidth;
     const rowHeight = 22;
     const chartHeight = isHorizontal
       ? Math.max(hostSize.height, this.items.length * rowHeight + 48)
-      : hostSize.height;
-    const verticalBottomMargin = Math.max(36, Math.round(chartHeight * 0.08));
+      : viewportHeight;
+    const verticalBottomMargin = 28;
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
-      : { top: 8, right: 8, bottom: verticalBottomMargin, left: 36 };
+      : { top: 6, right: 6, bottom: verticalBottomMargin, left: 32 };
 
-    const innerWidth = width - margin.left - margin.right;
+    const innerWidth = chartWidth - margin.left - margin.right;
     const innerHeight = chartHeight - margin.top - margin.bottom;
 
-    svgEl.setAttribute('width', String(width));
-    svgEl.setAttribute('height', String(chartHeight));
+    if (isHorizontal) {
+      svgEl.setAttribute('width', String(chartWidth));
+      svgEl.setAttribute('height', String(chartHeight));
+      svgEl.removeAttribute('viewBox');
+      svgEl.removeAttribute('preserveAspectRatio');
+    } else {
+      svgEl.setAttribute('viewBox', `0 0 ${chartWidth} ${chartHeight}`);
+      svgEl.setAttribute('preserveAspectRatio', 'none');
+      svgEl.setAttribute('width', '100%');
+      svgEl.setAttribute('height', '100%');
+    }
 
     const svg = select(svgEl);
     svg.selectAll('*').remove();
