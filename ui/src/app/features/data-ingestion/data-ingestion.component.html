@@ -1,0 +1,235 @@
+<section class="ingestion-page" role="main" aria-label="Data Ingestion">
+  <header class="stats-panel">
+    <div class="stat-tile">
+      <div class="stat-icon"><i class="pi pi-database"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Total datasets</div>
+        <div class="stat-value">{{ totalDatasets() }}</div>
+      </div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-icon ok"><i class="pi pi-check-circle"></i></div>
+      <div class="stat-content">
+        <div class="stat-label">Ready</div>
+        <div class="stat-value">{{ readyCount() }}</div>
+      </div>
+    </div>
+    <div class="stat-tile">
+      <div class="stat-icon running">
+        <i class="pi" [class.pi-spin]="runningCount() > 0" [class.pi-spinner]="runningCount() > 0" [class.pi-pause]="runningCount() === 0"></i>
+      </div>
+      <div class="stat-content">
+        <div class="stat-label">Running</div>
+        <div class="stat-value">{{ runningCount() }}</div>
+      </div>
+    </div>
+  </header>
+
+  <div class="two-panel-layout">
+    <aside class="left-sidebar" role="navigation" aria-label="Datasets list">
+      <div class="search-section">
+        <span class="p-input-icon-left search-input-wrapper">
+          <i class="pi pi-search" aria-hidden="true"></i>
+          <input
+            type="text"
+            class="search-input"
+            placeholder="Search datasets..."
+            [ngModel]="searchText()"
+            (ngModelChange)="searchText.set($event)"
+            aria-label="Search datasets" />
+        </span>
+      </div>
+
+      @if (snapshot().loading) {
+        <p class="muted small">Loading datasets…</p>
+      } @else if (snapshot().error) {
+        <p class="error small">{{ snapshot().error }}</p>
+      } @else {
+        <div class="dataset-list" role="list">
+          @for (entry of filteredDatasets(); track trackByResourceId($index, entry)) {
+            <div
+              class="dataset-card"
+              [class.selected]="selectedResourceId() === entry.resourceId"
+              role="listitem"
+              tabindex="0"
+              (click)="selectDataset(entry)"
+              (keydown.enter)="selectDataset(entry)"
+              [attr.aria-selected]="selectedResourceId() === entry.resourceId">
+              <div class="dataset-card-header">
+                <h3 class="dataset-title">{{ entry.title }}</h3>
+                <p-tag
+                  [value]="entry.running ? 'RUNNING' : entry.status"
+                  [severity]="statusSeverity(entry.running ? 'STARTED' : entry.status)">
+                </p-tag>
+              </div>
+              <p class="dataset-meta">{{ entry.category }} · {{ entry.sourceOrg }}</p>
+              <p class="dataset-counts small muted">
+                {{ entry.cachedRecords | number }} / {{ entry.portalTotal | number }} cached
+              </p>
+              @if (entry.running || (entry.portalTotal > 0 && entry.cachedRecords < entry.portalTotal)) {
+                <p-progressBar
+                  [value]="progressPercent(entry)"
+                  [showValue]="false"
+                  styleClass="dataset-progress">
+                </p-progressBar>
+              }
+            </div>
+          }
+          @if (filteredDatasets().length === 0) {
+            <p class="muted small">No datasets match your search.</p>
+          }
+        </div>
+      }
+    </aside>
+
+    <section class="right-panel" role="region" aria-label="Dataset details">
+      @if (!selectedDataset()) {
+        <div class="empty-detail">
+          <i class="pi pi-database" aria-hidden="true"></i>
+          <h3>Select a dataset</h3>
+          <p>Choose a dataset on the left to view details and start ingestion.</p>
+        </div>
+      } @else {
+        @let dataset = selectedDataset()!;
+        <header class="detail-header">
+          <h2>{{ dataset.title }}</h2>
+          <p-tag
+            [value]="dataset.running ? 'RUNNING' : dataset.status"
+            [severity]="statusSeverity(dataset.running ? 'STARTED' : dataset.status)">
+          </p-tag>
+        </header>
+
+        <p-tabs [value]="activeTab()" (valueChange)="onTabChange($event)">
+          <p-tablist>
+            <p-tab value="details">
+              <i class="pi pi-info-circle"></i>
+              <span>Details</span>
+            </p-tab>
+            <p-tab value="history">
+              <i class="pi pi-history"></i>
+              <span>History</span>
+            </p-tab>
+          </p-tablist>
+
+          <p-tabpanels>
+            <p-tabpanel value="details">
+              <div class="detail-grid">
+                <div class="detail-row">
+                  <span class="detail-label">Job name</span>
+                  <code class="detail-value">{{ dataset.jobName }}</code>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Resource UUID</span>
+                  <code class="detail-value">{{ dataset.resourceId }}</code>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Category</span>
+                  <span class="detail-value">{{ dataset.category }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Source</span>
+                  <span class="detail-value">{{ dataset.sourceOrg }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Portal total</span>
+                  <span class="detail-value">{{ dataset.portalTotal | number }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Cached locally</span>
+                  <span class="detail-value">{{ dataset.cachedRecords | number }}</span>
+                </div>
+                <div class="detail-row">
+                  <span class="detail-label">Last synced</span>
+                  <span class="detail-value">
+                    {{ dataset.fetchedAt ? (dataset.fetchedAt | date:'yyyy-MM-dd HH:mm:ss') : 'Never' }}
+                  </span>
+                </div>
+                @if (dataset.syncStartedAt && dataset.running) {
+                  <div class="detail-row">
+                    <span class="detail-label">Sync started</span>
+                    <span class="detail-value">
+                      {{ dataset.syncStartedAt | date:'yyyy-MM-dd HH:mm:ss' }}
+                    </span>
+                  </div>
+                }
+                @if (dataset.lastError) {
+                  <div class="detail-row error-row">
+                    <span class="detail-label">Last error</span>
+                    <span class="detail-value error">{{ dataset.lastError }}</span>
+                  </div>
+                }
+              </div>
+
+              @if (dataset.running && dataset.portalTotal > 0) {
+                <div class="progress-block">
+                  <div class="progress-label">
+                    Ingesting:
+                    {{ dataset.cachedRecords | number }} / {{ dataset.portalTotal | number }}
+                    ({{ progressPercent(dataset) }}%)
+                  </div>
+                  <p-progressBar [value]="progressPercent(dataset)"></p-progressBar>
+                </div>
+              }
+
+              <div class="detail-actions">
+                <p-button
+                  label="Fetch Data"
+                  icon="pi pi-download"
+                  severity="success"
+                  [loading]="triggering()"
+                  [disabled]="dataset.running || triggering()"
+                  (onClick)="fetchData()">
+                </p-button>
+              </div>
+
+              @if (triggerError()) {
+                <p class="error small">{{ triggerError() }}</p>
+              }
+            </p-tabpanel>
+
+            <p-tabpanel value="history">
+              @if (history().loading) {
+                <p class="muted small">Loading history…</p>
+              } @else if (history().error) {
+                <p class="error small">{{ history().error }}</p>
+              } @else if (history().runs.length === 0) {
+                <p class="muted small">No ingestion runs yet for this dataset.</p>
+              } @else {
+                <p-table [value]="history().runs" [rowTrackBy]="trackByExecutionId" styleClass="history-table">
+                  <ng-template pTemplate="header">
+                    <tr>
+                      <th>Execution</th>
+                      <th>Status</th>
+                      <th>Started</th>
+                      <th>Completed</th>
+                      <th>Duration</th>
+                      <th>Read</th>
+                      <th>Written</th>
+                      <th>Error</th>
+                    </tr>
+                  </ng-template>
+                  <ng-template pTemplate="body" let-run>
+                    <tr>
+                      <td>{{ run.executionId }}</td>
+                      <td>
+                        <p-tag [value]="run.status" [severity]="statusSeverity(run.status)"></p-tag>
+                      </td>
+                      <td>{{ run.startedAt | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+                      <td>{{ run.completedAt ? (run.completedAt | date:'yyyy-MM-dd HH:mm:ss') : '—' }}</td>
+                      <td>{{ runDuration(run) }}</td>
+                      <td>{{ run.recordsRead | number }}</td>
+                      <td>{{ run.recordsWritten | number }}</td>
+                      <td class="error-cell" [pTooltip]="run.errorMessage" tooltipPosition="left">
+                        {{ run.errorMessage ? '⚠' : '—' }}
+                      </td>
+                    </tr>
+                  </ng-template>
+                </p-table>
+              }
+            </p-tabpanel>
+          </p-tabpanels>
+        </p-tabs>
+      }
+    </section>
+  </div>
+</section>

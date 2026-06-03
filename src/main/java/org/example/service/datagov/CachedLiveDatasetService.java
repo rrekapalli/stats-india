@@ -44,7 +44,11 @@ public class CachedLiveDatasetService {
         if (metaOpt.isEmpty()) {
             return emptyResponse(def, DatasetFetchStatus.MISSING.name(), null, 0);
         }
-        return buildExploreResponse(def, metaOpt.get(), List.of(), null, 0, 0, false);
+        DatasetCacheMeta meta = metaOpt.get();
+        if (def.aggregationMode() == LiveDatasetAggregationMode.COUNT_ROWS) {
+            return buildExploreFromAggregates(def, meta);
+        }
+        return buildExploreResponse(def, meta, List.of(), null, 0, 0, false);
     }
 
     public DatasetDataResponse getExploreFiltered(String resourceId, List<DatasetFilter> filters) {
@@ -138,6 +142,88 @@ public class CachedLiveDatasetService {
             case SUM_METRIC -> sumMetricAggregates(def, records);
             case STATE_SNAPSHOT -> Map.of();
         };
+    }
+
+    /**
+     * Fast unfiltered explore for COUNT_ROWS datasets (e.g. MCA, 3.6M rows): reads
+     * pre-aggregated counts from {@code dataset_aggregate} instead of streaming every
+     * cached row. State metrics come from the {@code state} dimension's aggregate;
+     * dimension groups come from {@link GenericAggregateEngine#buildDimensionGroups}.
+     * Time series and unpivot dimensions are skipped (not produced for COUNT_ROWS).
+     */
+    private DatasetDataResponse buildExploreFromAggregates(LiveDatasetDefinition def, DatasetCacheMeta meta) {
+        Map<String, Map<String, Integer>> aggregates = cacheRepository.loadAggregates(meta.resourceId());
+
+        List<StateMetric> stateMetrics = stateMetricsFromAggregates(def, aggregates);
+
+        List<DimensionGroup> dimensionGroups = new ArrayList<>();
+        dimensionGroups.add(summaryGroupFromAggregates(def, meta, aggregates));
+        dimensionGroups.addAll(GenericAggregateEngine.buildDimensionGroups(aggregates, def.allDimensionSpecs()));
+
+        return new DatasetDataResponse(
+                meta.resourceId(),
+                meta.title(),
+                meta.description(),
+                meta.portalTotal(),
+                0,
+                0,
+                0,
+                stateMetrics,
+                dimensionGroups,
+                List.of(),
+                meta.status().name(),
+                formatInstant(meta.fetchedAt()),
+                meta.cachedRecords(),
+                null
+        );
+    }
+
+    private List<StateMetric> stateMetricsFromAggregates(
+            LiveDatasetDefinition def,
+            Map<String, Map<String, Integer>> aggregates
+    ) {
+        DatasetDimensionSpec stateSpec = def.allDimensionSpecs().stream()
+                .filter(spec -> spec.role() == DimensionRole.GEOGRAPHY)
+                .findFirst()
+                .orElse(null);
+        if (stateSpec == null) {
+            return List.of();
+        }
+        Map<String, Integer> counts = aggregates.getOrDefault(stateSpec.resolvedAggregateKey(), Map.of());
+        return counts.entrySet().stream()
+                .sorted(Comparator.comparingInt(Map.Entry<String, Integer>::getValue).reversed())
+                .map(e -> new StateMetric(
+                        e.getKey(),
+                        IndianStateNormalizer.stateCodeFor(e.getKey()),
+                        e.getValue().doubleValue(),
+                        def.metricUnit(),
+                        "cached"
+                ))
+                .toList();
+    }
+
+    private DimensionGroup summaryGroupFromAggregates(
+            LiveDatasetDefinition def,
+            DatasetCacheMeta meta,
+            Map<String, Map<String, Integer>> aggregates
+    ) {
+        List<DimensionItem> items = new ArrayList<>();
+        items.add(new DimensionItem(
+                "total-records", "Total records (portal)", String.valueOf(meta.portalTotal()), "count"));
+        items.add(new DimensionItem(
+                "cached-records", "Records cached locally", String.valueOf(meta.cachedRecords()), "count"));
+        DatasetDimensionSpec stateSpec = def.allDimensionSpecs().stream()
+                .filter(spec -> spec.role() == DimensionRole.GEOGRAPHY)
+                .findFirst()
+                .orElse(null);
+        long states = stateSpec == null
+                ? 0
+                : aggregates.getOrDefault(stateSpec.resolvedAggregateKey(), Map.of()).size();
+        items.add(new DimensionItem("states", "States / UTs represented", String.valueOf(states), "count"));
+        if (meta.fetchedAt() != null) {
+            items.add(new DimensionItem("cached-at", "Last synced", meta.fetchedAt().toString(), "timestamp"));
+        }
+        return new DimensionGroup("summary", "Dataset summary", items, DimensionRole.SUMMARY, items.size(), null, false);
     }
 
     private DatasetDataResponse buildExploreResponse(

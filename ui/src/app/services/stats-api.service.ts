@@ -4,9 +4,11 @@ import { Observable } from 'rxjs';
 import {
   DatasetDataResponse,
   DatasetSummary,
+  DatasetSyncHistoryResponse,
   DatasetSyncStatus,
   DimensionGroup,
   HealthResponse,
+  IngestionSnapshotResponse,
   StateMetric
 } from '../models/dataset.models';
 
@@ -74,5 +76,25 @@ export class StatsApiService {
 
   triggerSync(datasetId: string): Observable<DatasetSyncStatus> {
     return this.http.post<DatasetSyncStatus>(`${this.base}/datasets/${datasetId}/sync`, null);
+  }
+
+  getSyncHistory(
+    datasetId: string,
+    limit = 50,
+    offset = 0
+  ): Observable<DatasetSyncHistoryResponse> {
+    return this.http.get<DatasetSyncHistoryResponse>(
+      `${this.base}/datasets/${datasetId}/sync/history`,
+      {
+        params: {
+          limit: String(limit),
+          offset: String(offset)
+        }
+      }
+    );
+  }
+
+  getIngestionSnapshot(): Observable<IngestionSnapshotResponse> {
+    return this.http.get<IngestionSnapshotResponse>(`${this.base}/ingestion/snapshot`);
   }
 }

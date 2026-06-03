@@ -5,9 +5,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "stats-india.cache")
 public class DatasetCacheProperties {
 
-    /** SQLite database file path (parent directory is created on startup). */
-    private String dbPath = "./data/datasets.db";
-
     /** Records per data.gov.in API request (max 10_000). */
     private int pageSize = 10_000;
 
@@ -21,15 +18,7 @@ public class DatasetCacheProperties {
     private String refreshCron = "0 0 3 * * SUN";
 
     /** Kick off background sync on application startup when cache is missing or stale. */
-    private boolean syncOnStartup = true;
-
-    public String getDbPath() {
-        return dbPath;
-    }
-
-    public void setDbPath(String dbPath) {
-        this.dbPath = dbPath;
-    }
+    private boolean syncOnStartup = false;
 
     public int getPageSize() {
         return pageSize;

@@ -1,9 +1,6 @@
 package org.example.cache;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import org.example.client.DataGovInClient;
-import org.example.service.datagov.CachedLiveDatasetService;
-import org.example.service.datagov.DatasetDimensionSpec;
+import org.example.batch.DatasetIngestionJobService;
 import org.example.service.datagov.LiveDatasetDefinition;
 import org.example.service.datagov.LiveDatasetRegistry;
 import org.slf4j.Logger;
@@ -13,38 +10,33 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Thin orchestrator that wires legacy callers (controller, scheduled refresh, startup
+ * hook) to the Spring Batch ingestion service. The actual ingestion work is owned by
+ * {@link DatasetIngestionJobService}.
+ */
 @Service
 public class DatasetSyncService {
 
     private static final Logger log = LoggerFactory.getLogger(DatasetSyncService.class);
 
-    private final DataGovInClient dataGovInClient;
     private final DatasetCacheRepository cacheRepository;
     private final DatasetCacheProperties cacheProperties;
-    private final CachedLiveDatasetService liveDatasetService;
     private final LiveDatasetRegistry registry;
-    private final ConcurrentHashMap<String, AtomicBoolean> syncRunning = new ConcurrentHashMap<>();
+    private final DatasetIngestionJobService ingestionJobService;
 
     public DatasetSyncService(
-            DataGovInClient dataGovInClient,
             DatasetCacheRepository cacheRepository,
             DatasetCacheProperties cacheProperties,
-            CachedLiveDatasetService liveDatasetService,
-            LiveDatasetRegistry registry
+            LiveDatasetRegistry registry,
+            DatasetIngestionJobService ingestionJobService
     ) {
-        this.dataGovInClient = dataGovInClient;
         this.cacheRepository = cacheRepository;
         this.cacheProperties = cacheProperties;
-        this.liveDatasetService = liveDatasetService;
         this.registry = registry;
+        this.ingestionJobService = ingestionJobService;
     }
 
     @EventListener(ApplicationReadyEvent.class)
@@ -68,212 +60,27 @@ public class DatasetSyncService {
         if (!registry.isRegistered(resourceId)) {
             return;
         }
+        if (ingestionJobService.isRunning(resourceId)) {
+            return;
+        }
         Optional<DatasetCacheMeta> meta = cacheRepository.findMeta(resourceId);
-        if (meta.isPresent()
-                && meta.get().status() == DatasetFetchStatus.SYNCING
-                && !isAbandonedSync(meta.get())) {
+        if (meta.isPresent() && meta.get().status() == DatasetFetchStatus.READY
+                && !cacheRepository.isStale(meta.get(), cacheProperties.getRefreshAfterDays())) {
             return;
         }
-        if (!needsIngestion(resourceId)) {
-            return;
+        try {
+            ingestionJobService.triggerJob(resourceId);
+        } catch (IllegalStateException ex) {
+            log.info("Skipping refresh for {}: {}", resourceId, ex.getMessage());
         }
-        startSyncAsync(resourceId);
     }
 
-    public void startSyncAsync(String resourceId) {
-        if (!registry.isRegistered(resourceId)) {
-            throw new IllegalArgumentException("Sync not supported for dataset: " + resourceId);
-        }
-        AtomicBoolean lock = syncRunning.computeIfAbsent(resourceId, ignored -> new AtomicBoolean(false));
-        if (!lock.compareAndSet(false, true)) {
-            log.info("Dataset sync already running for {}", resourceId);
-            return;
-        }
-        CompletableFuture.runAsync(() -> {
-            try {
-                syncDataset(resourceId);
-            } finally {
-                lock.set(false);
-            }
-        });
+    /** Trigger an ingestion job; throws {@link IllegalStateException} if one is running. */
+    public long startSync(String resourceId) {
+        return ingestionJobService.triggerJob(resourceId);
     }
 
     public Optional<DatasetCacheMeta> getMeta(String resourceId) {
         return cacheRepository.findMeta(resourceId);
-    }
-
-    private void syncDataset(String resourceId) {
-        LiveDatasetDefinition def = registry.require(resourceId);
-        int pageSize = cacheProperties.getPageSize();
-        log.info("Dataset sync starting for {} (page size {})", resourceId, pageSize);
-
-        try {
-            JsonNode probe = dataGovInClient.fetchResource(resourceId, 0, 1);
-            long portalTotal = parseLong(probe, "total");
-            String title = textOrDefault(probe, "title", def.title());
-            String description = textOrDefault(probe, "desc", def.description());
-
-            if (portalTotal <= 0) {
-                log.warn("Portal returned zero total records for {}; skipping sync", resourceId);
-                return;
-            }
-
-            long cached = cacheRepository.countRecords(resourceId);
-            if (cached >= portalTotal) {
-                cacheRepository.markReady(resourceId, cached);
-                log.info("Cache already complete for {}: {}/{} records", resourceId, cached, portalTotal);
-                return;
-            }
-
-            int offset;
-            if (cached > 0) {
-                cacheRepository.resumeSync(resourceId, title, description, portalTotal);
-                offset = (int) cached;
-                log.info("Resuming sync for {} from offset {} ({}/{} portal records)", resourceId, offset, cached, portalTotal);
-            } else {
-                cacheRepository.beginSync(resourceId, title, description, portalTotal);
-                offset = 0;
-                log.info("Starting fresh sync for {} (portal total {})", resourceId, portalTotal);
-            }
-
-            persistDimensions(resourceId, def.allDimensionSpecs());
-            ingestFromOffset(def, offset, portalTotal, pageSize);
-
-            long finalCached = cacheRepository.countRecords(resourceId);
-            cacheRepository.markReady(resourceId, finalCached);
-            log.info("Dataset sync complete for {}: {} records cached (portal {})", resourceId, finalCached, portalTotal);
-        } catch (Exception ex) {
-            log.error("Dataset sync failed for {}", resourceId, ex);
-            cacheRepository.markError(resourceId, ex.getMessage());
-        }
-    }
-
-    private void ingestFromOffset(LiveDatasetDefinition def, int offset, long portalTotal, int pageSize) {
-        String resourceId = def.resourceId();
-        if (offset == 0) {
-            JsonNode firstPage = dataGovInClient.fetchResource(resourceId, 0, pageSize);
-            int count = parseInt(firstPage, "count");
-            if (count <= 0) {
-                return;
-            }
-            ingestPage(def, firstPage, 0);
-            offset = count;
-            cacheRepository.updateProgress(resourceId, offset);
-        }
-
-        while (offset < portalTotal) {
-            sleepBetweenRequests();
-            JsonNode page = dataGovInClient.fetchResource(resourceId, offset, pageSize);
-            int count = parseInt(page, "count");
-            if (count <= 0) {
-                break;
-            }
-            ingestPage(def, page, offset);
-            offset += count;
-            cacheRepository.updateProgress(resourceId, offset);
-            if (offset % 50_000 == 0 || offset >= portalTotal) {
-                log.info("Sync progress for {}: {}/{} records", resourceId, offset, portalTotal);
-            }
-        }
-    }
-
-    private void ingestPage(LiveDatasetDefinition def, JsonNode payload, int startIndex) {
-        List<Map<String, String>> records = liveDatasetService.parseRecords(def, payload);
-        cacheRepository.insertRecords(def.resourceId(), startIndex, records);
-        Map<String, Map<String, Integer>> aggregates = liveDatasetService.aggregateBatch(def, records);
-        if (!aggregates.isEmpty()) {
-            cacheRepository.mergeAggregates(def.resourceId(), aggregates);
-        }
-    }
-
-    private boolean needsIngestion(String resourceId) {
-        long portalTotal = fetchPortalTotal(resourceId);
-        if (portalTotal <= 0) {
-            return false;
-        }
-        Optional<DatasetCacheMeta> meta = cacheRepository.findMeta(resourceId);
-        if (meta.isEmpty()) {
-            return true;
-        }
-        long cached = cacheRepository.countRecords(resourceId);
-        if (cached < portalTotal) {
-            return true;
-        }
-        if (meta.get().status() != DatasetFetchStatus.READY) {
-            cacheRepository.markReady(resourceId, cached);
-        }
-        return false;
-    }
-
-    private boolean isAbandonedSync(DatasetCacheMeta meta) {
-        if (meta.syncStartedAt() == null) {
-            return true;
-        }
-        return meta.syncStartedAt().isBefore(java.time.Instant.now().minusSeconds(6 * 3600L));
-    }
-
-    private long fetchPortalTotal(String resourceId) {
-        JsonNode probe = dataGovInClient.fetchResource(resourceId, 0, 1);
-        return parseLong(probe, "total");
-    }
-
-    private void persistDimensions(String resourceId, List<DatasetDimensionSpec> specs) {
-        List<DatasetDimensionRow> rows = new ArrayList<>(specs.size());
-        for (int i = 0; i < specs.size(); i++) {
-            DatasetDimensionSpec spec = specs.get(i);
-            rows.add(new DatasetDimensionRow(
-                    spec.id(),
-                    spec.label(),
-                    spec.role().name(),
-                    spec.sourceField(),
-                    spec.resolvedAggregateKey(),
-                    spec.countUnit(),
-                    spec.displayLimit(),
-                    i,
-                    spec.sourceField() != null
-            ));
-        }
-        cacheRepository.replaceDimensions(resourceId, rows);
-    }
-
-    private void sleepBetweenRequests() {
-        long delay = cacheProperties.getRequestDelayMs();
-        if (delay <= 0) {
-            return;
-        }
-        try {
-            Thread.sleep(delay);
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Sync interrupted", ex);
-        }
-    }
-
-    private static long parseLong(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        if (value == null || value.isNull()) {
-            return 0L;
-        }
-        if (value.isNumber()) {
-            return value.asLong();
-        }
-        try {
-            return Long.parseLong(value.asText("0"));
-        } catch (NumberFormatException ex) {
-            return 0L;
-        }
-    }
-
-    private static int parseInt(JsonNode node, String field) {
-        return (int) parseLong(node, field);
-    }
-
-    private static String textOrDefault(JsonNode node, String field, String fallback) {
-        JsonNode value = node.get(field);
-        if (value == null || value.isNull()) {
-            return fallback;
-        }
-        String text = value.asText("").trim();
-        return text.isEmpty() ? fallback : text;
     }
 }

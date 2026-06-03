@@ -82,6 +82,21 @@ public class DatasetController {
             return datasetDataService.getSyncStatus(id);
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        } catch (IllegalStateException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, ex.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/sync/history")
+    public org.example.dto.DatasetSyncHistoryResponse getSyncHistory(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "50") int limit,
+            @RequestParam(defaultValue = "0") int offset
+    ) {
+        try {
+            return datasetDataService.getSyncHistory(id, limit, offset);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
         }
     }
 

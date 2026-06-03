@@ -48,7 +48,7 @@ ensure_java21 "$VMID"
 
 log_info "Creating app user and directories..."
 proxmox_exec_in_container "$VMID" "id -u ${APP_USER} >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -d ${APP_DIR} ${APP_USER}" || true
-proxmox_exec_in_container "$VMID" "mkdir -p ${APP_DIR}/logs ${APP_DIR}/cache && chown -R ${APP_USER}:${APP_USER} ${APP_DIR} && chmod 755 ${APP_DIR}" || true
+proxmox_exec_in_container "$VMID" "mkdir -p ${APP_DIR}/logs && chown -R ${APP_USER}:${APP_USER} ${APP_DIR} && chmod 755 ${APP_DIR}" || true
 
 REMOTE_JAR="${APP_DIR}/stats-india.jar"
 log_info "Uploading JAR..."
@@ -57,11 +57,24 @@ proxmox_exec_in_container "$VMID" "chown ${APP_USER}:${APP_USER} ${REMOTE_JAR} &
 
 SPRING_PROFILES="${SPRING_PROFILES_ACTIVE:-prod}"
 JAVA_OPTS="${STATS_INDIA_JAVA_OPTS:--Xms256m -Xmx1536m}"
-CACHE_ENV_LINE="Environment=\"STATS_INDIA_CACHE_DIR=${APP_DIR}/cache\""
 DATAGOV_ENV_LINE=""
 if [[ -n "${DATA_GOV_IN_API_KEY:-}" ]]; then
     DATAGOV_ENV_LINE="Environment=\"DATA_GOV_IN_API_KEY=${DATA_GOV_IN_API_KEY}\""
 fi
+
+# PostgreSQL connection (pg18 shared with moneytree). DATABASE_URL takes precedence
+# over DB_HOST/DB_PORT/DB_NAME if set explicitly in .env.
+DB_HOST_VALUE="${DB_HOST:-pg18.tailce422e.ts.net}"
+DB_PORT_VALUE="${DB_PORT:-6432}"
+DB_NAME_VALUE="${DB_NAME:-stats-india}"
+DATABASE_URL_VALUE="${DATABASE_URL:-jdbc:postgresql://${DB_HOST_VALUE}:${DB_PORT_VALUE}/${DB_NAME_VALUE}}"
+DB_USERNAME_VALUE="${DB_USERNAME:-stats_india}"
+if [[ -z "${DB_PASSWORD:-}" ]]; then
+    log_warn "DB_PASSWORD is not set; the API will not be able to connect to PostgreSQL."
+fi
+DATABASE_URL_LINE="Environment=\"DATABASE_URL=${DATABASE_URL_VALUE}\""
+DB_USERNAME_LINE="Environment=\"DB_USERNAME=${DB_USERNAME_VALUE}\""
+DB_PASSWORD_LINE="Environment=\"DB_PASSWORD=${DB_PASSWORD:-}\""
 
 log_info "Installing systemd unit..."
 UNIT=$(cat <<EOF
@@ -77,8 +90,10 @@ Group=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="SPRING_PROFILES_ACTIVE=${SPRING_PROFILES}"
 Environment="SERVER_PORT=${API_PORT}"
-${CACHE_ENV_LINE}
 ${DATAGOV_ENV_LINE}
+${DATABASE_URL_LINE}
+${DB_USERNAME_LINE}
+${DB_PASSWORD_LINE}
 ExecStart=/usr/bin/java ${JAVA_OPTS} -jar ${REMOTE_JAR}
 Restart=on-failure
 RestartSec=5

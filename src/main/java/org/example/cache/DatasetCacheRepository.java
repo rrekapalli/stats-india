@@ -8,12 +8,18 @@ import org.springframework.jdbc.core.RowMapper;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+/**
+ * JDBC-backed access to the PostgreSQL dataset cache.
+ * Schema is owned by Flyway migrations under {@code src/main/resources/db/migration/}.
+ */
 public class DatasetCacheRepository {
 
     private static final TypeReference<Map<String, String>> RECORD_TYPE = new TypeReference<>() {};
@@ -23,62 +29,6 @@ public class DatasetCacheRepository {
 
     public DatasetCacheRepository(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
-    }
-
-    public void initSchema() {
-        jdbc.execute("PRAGMA journal_mode=WAL");
-        jdbc.execute("PRAGMA synchronous=NORMAL");
-        jdbc.execute("PRAGMA busy_timeout=10000");
-        jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS dataset_meta (
-                    resource_id TEXT PRIMARY KEY,
-                    title TEXT NOT NULL,
-                    description TEXT,
-                    portal_total INTEGER NOT NULL DEFAULT 0,
-                    cached_records INTEGER NOT NULL DEFAULT 0,
-                    status TEXT NOT NULL,
-                    fetched_at TEXT,
-                    sync_started_at TEXT,
-                    last_error TEXT
-                )
-                """);
-        jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS dataset_record (
-                    resource_id TEXT NOT NULL,
-                    row_index INTEGER NOT NULL,
-                    cin TEXT,
-                    data_json TEXT NOT NULL,
-                    PRIMARY KEY (resource_id, row_index)
-                )
-                """);
-        jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS dataset_aggregate (
-                    resource_id TEXT NOT NULL,
-                    dimension TEXT NOT NULL,
-                    agg_key TEXT NOT NULL,
-                    count INTEGER NOT NULL,
-                    PRIMARY KEY (resource_id, dimension, agg_key)
-                )
-                """);
-        jdbc.execute("""
-                CREATE TABLE IF NOT EXISTS dataset_dimension (
-                    resource_id TEXT NOT NULL,
-                    dimension_id TEXT NOT NULL,
-                    label TEXT NOT NULL,
-                    role TEXT NOT NULL,
-                    source_field TEXT,
-                    aggregate_key TEXT,
-                    count_unit TEXT,
-                    display_limit INTEGER NOT NULL DEFAULT 0,
-                    sort_order INTEGER NOT NULL DEFAULT 0,
-                    filterable INTEGER NOT NULL DEFAULT 0,
-                    PRIMARY KEY (resource_id, dimension_id)
-                )
-                """);
-        jdbc.execute("""
-                CREATE INDEX IF NOT EXISTS idx_dataset_record_resource
-                ON dataset_record (resource_id, row_index)
-                """);
     }
 
     public Optional<DatasetCacheMeta> findMeta(String resourceId) {
@@ -95,21 +45,21 @@ public class DatasetCacheRepository {
     }
 
     public void beginSync(String resourceId, String title, String description, long portalTotal) {
-        Instant now = Instant.now();
+        Timestamp now = Timestamp.from(Instant.now());
         jdbc.update(
                 """
                         INSERT INTO dataset_meta (
                             resource_id, title, description, portal_total, cached_records,
                             status, fetched_at, sync_started_at, last_error
                         ) VALUES (?, ?, ?, ?, 0, ?, NULL, ?, NULL)
-                        ON CONFLICT(resource_id) DO UPDATE SET
-                            title = excluded.title,
-                            description = excluded.description,
-                            portal_total = excluded.portal_total,
+                        ON CONFLICT (resource_id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            description = EXCLUDED.description,
+                            portal_total = EXCLUDED.portal_total,
                             cached_records = 0,
-                            status = excluded.status,
+                            status = EXCLUDED.status,
                             fetched_at = NULL,
-                            sync_started_at = excluded.sync_started_at,
+                            sync_started_at = EXCLUDED.sync_started_at,
                             last_error = NULL
                         """,
                 resourceId,
@@ -117,7 +67,7 @@ public class DatasetCacheRepository {
                 description,
                 portalTotal,
                 DatasetFetchStatus.SYNCING.name(),
-                now.toString()
+                now
         );
         jdbc.update("DELETE FROM dataset_record WHERE resource_id = ?", resourceId);
         jdbc.update("DELETE FROM dataset_aggregate WHERE resource_id = ?", resourceId);
@@ -125,19 +75,19 @@ public class DatasetCacheRepository {
 
     /** Continue an in-progress cache without wiping existing rows or aggregates. */
     public void resumeSync(String resourceId, String title, String description, long portalTotal) {
-        Instant now = Instant.now();
+        Timestamp now = Timestamp.from(Instant.now());
         jdbc.update(
                 """
                         INSERT INTO dataset_meta (
                             resource_id, title, description, portal_total, cached_records,
                             status, fetched_at, sync_started_at, last_error
                         ) VALUES (?, ?, ?, ?, 0, ?, NULL, ?, NULL)
-                        ON CONFLICT(resource_id) DO UPDATE SET
-                            title = excluded.title,
-                            description = excluded.description,
-                            portal_total = excluded.portal_total,
-                            status = ?,
-                            sync_started_at = excluded.sync_started_at,
+                        ON CONFLICT (resource_id) DO UPDATE SET
+                            title = EXCLUDED.title,
+                            description = EXCLUDED.description,
+                            portal_total = EXCLUDED.portal_total,
+                            status = EXCLUDED.status,
+                            sync_started_at = EXCLUDED.sync_started_at,
                             last_error = NULL
                         """,
                 resourceId,
@@ -145,8 +95,7 @@ public class DatasetCacheRepository {
                 description,
                 portalTotal,
                 DatasetFetchStatus.SYNCING.name(),
-                now.toString(),
-                DatasetFetchStatus.SYNCING.name()
+                now
         );
     }
 
@@ -159,7 +108,7 @@ public class DatasetCacheRepository {
     }
 
     public void markReady(String resourceId, long cachedRecords) {
-        Instant now = Instant.now();
+        Timestamp now = Timestamp.from(Instant.now());
         jdbc.update(
                 """
                         UPDATE dataset_meta
@@ -168,7 +117,7 @@ public class DatasetCacheRepository {
                         """,
                 DatasetFetchStatus.READY.name(),
                 cachedRecords,
-                now.toString(),
+                now,
                 resourceId
         );
     }
@@ -187,14 +136,19 @@ public class DatasetCacheRepository {
             return;
         }
         jdbc.batchUpdate(
-                "INSERT INTO dataset_record (resource_id, row_index, cin, data_json) VALUES (?, ?, ?, ?)",
+                "INSERT INTO dataset_record (resource_id, row_index, cin, data_json) VALUES (?, ?, ?, ?::jsonb)",
                 new BatchPreparedStatementSetter() {
                     @Override
                     public void setValues(PreparedStatement ps, int i) throws SQLException {
                         Map<String, String> row = records.get(i);
                         ps.setString(1, resourceId);
                         ps.setInt(2, startIndex + i);
-                        ps.setString(3, row.getOrDefault("cin", ""));
+                        String cin = row.get("cin");
+                        if (cin == null) {
+                            ps.setNull(3, Types.VARCHAR);
+                        } else {
+                            ps.setString(3, cin);
+                        }
                         ps.setString(4, toJson(row));
                     }
 
@@ -213,22 +167,19 @@ public class DatasetCacheRepository {
                         """
                                 INSERT INTO dataset_aggregate (resource_id, dimension, agg_key, count)
                                 VALUES (?, ?, ?, ?)
-                                ON CONFLICT(resource_id, dimension, agg_key)
-                                DO UPDATE SET count = count + excluded.count
+                                ON CONFLICT (resource_id, dimension, agg_key)
+                                DO UPDATE SET count = dataset_aggregate.count + EXCLUDED.count
                                 """,
                         resourceId,
                         dimension.getKey(),
                         entry.getKey(),
-                        entry.getValue()
+                        entry.getValue().longValue()
                 );
             }
         }
     }
 
-    /**
-     * Replace the dimension definitions for a resource. Schema is Postgres-portable so this
-     * survives a future swap from SQLite to JDBC-Postgres.
-     */
+    /** Replace the dimension definitions for a resource. */
     public void replaceDimensions(String resourceId, List<DatasetDimensionRow> rows) {
         jdbc.update("DELETE FROM dataset_dimension WHERE resource_id = ?", resourceId);
         if (rows == null || rows.isEmpty()) {
@@ -254,7 +205,7 @@ public class DatasetCacheRepository {
                         ps.setString(7, row.countUnit());
                         ps.setInt(8, row.displayLimit());
                         ps.setInt(9, row.sortOrder());
-                        ps.setInt(10, row.filterable() ? 1 : 0);
+                        ps.setBoolean(10, row.filterable());
                     }
 
                     @Override
@@ -282,7 +233,7 @@ public class DatasetCacheRepository {
                         rs.getString("count_unit"),
                         rs.getInt("display_limit"),
                         rs.getInt("sort_order"),
-                        rs.getInt("filterable") != 0
+                        rs.getBoolean("filterable")
                 ),
                 resourceId
         );
@@ -297,10 +248,12 @@ public class DatasetCacheRepository {
                         WHERE resource_id = ?
                         ORDER BY dimension, count DESC
                         """,
-                rs -> {
+                (org.springframework.jdbc.core.RowCallbackHandler) rs -> {
                     String dimension = rs.getString("dimension");
+                    long count = rs.getLong("count");
+                    int safeCount = count > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) count;
                     result.computeIfAbsent(dimension, k -> new LinkedHashMap<>())
-                            .put(rs.getString("agg_key"), rs.getInt("count"));
+                            .put(rs.getString("agg_key"), safeCount);
                 },
                 resourceId
         );
@@ -329,11 +282,7 @@ public class DatasetCacheRepository {
                         WHERE resource_id = ?
                         ORDER BY row_index
                         """,
-                rs -> {
-                    while (rs.next()) {
-                        consumer.accept(fromJson(rs.getString("data_json")));
-                    }
-                },
+                (org.springframework.jdbc.core.RowCallbackHandler) rs -> consumer.accept(fromJson(rs.getString("data_json"))),
                 resourceId
         );
     }
@@ -362,17 +311,14 @@ public class DatasetCacheRepository {
                 rs.getLong("portal_total"),
                 rs.getLong("cached_records"),
                 DatasetFetchStatus.valueOf(rs.getString("status")),
-                parseInstant(rs.getString("fetched_at")),
-                parseInstant(rs.getString("sync_started_at")),
+                toInstant(rs.getTimestamp("fetched_at")),
+                toInstant(rs.getTimestamp("sync_started_at")),
                 rs.getString("last_error")
         );
     }
 
-    private Instant parseInstant(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return Instant.parse(value);
+    private Instant toInstant(Timestamp ts) {
+        return ts == null ? null : ts.toInstant();
     }
 
     private String toJson(Map<String, String> row) {

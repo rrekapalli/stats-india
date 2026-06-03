@@ -2,35 +2,19 @@ package org.example.cache;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Primary;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import javax.sql.DataSource;
-import java.nio.file.Files;
-import java.nio.file.Path;
 
+/**
+ * Wires the dataset cache repository to the autoconfigured Spring Boot {@link DataSource}
+ * (PostgreSQL via HikariCP). Schema is owned by Flyway migrations under
+ * {@code src/main/resources/db/migration/}.
+ */
 @Configuration
 public class DatasetCacheConfig {
 
     @Bean
-    @Primary
-    DataSource dataSource(DatasetCacheProperties properties) throws Exception {
-        Path dbPath = Path.of(properties.getDbPath()).toAbsolutePath().normalize();
-        Files.createDirectories(dbPath.getParent());
-        org.sqlite.SQLiteDataSource dataSource = new org.sqlite.SQLiteDataSource();
-        dataSource.setUrl("jdbc:sqlite:" + dbPath);
-        return dataSource;
-    }
-
-    @Bean
-    JdbcTemplate jdbcTemplate(DataSource dataSource) {
-        return new JdbcTemplate(dataSource);
-    }
-
-    @Bean
-    DatasetCacheRepository datasetCacheRepository(JdbcTemplate jdbcTemplate) {
-        DatasetCacheRepository repository = new DatasetCacheRepository(jdbcTemplate);
-        repository.initSchema();
-        return repository;
+    DatasetCacheRepository datasetCacheRepository(DataSource dataSource) {
+        return new DatasetCacheRepository(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
     }
 }
