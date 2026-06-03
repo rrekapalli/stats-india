@@ -18,6 +18,9 @@ import {
   StateMetric
 } from '../../models/dataset.models';
 import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
+import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
+import { ExplorerCrossFilter } from './explorer-cross-filter';
+import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
   formatMetricPercent,
@@ -49,7 +52,8 @@ interface GlanceTile {
     ScrollPanelModule,
     TagModule,
     TooltipModule,
-    IndiaStateMapComponent
+    IndiaStateMapComponent,
+    BarChartComponent
   ],
   templateUrl: './explorer.component.html',
   styleUrl: './explorer.component.css',
@@ -82,6 +86,8 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   dataFirst = 0;
   dataRows = 25;
+
+  readonly crossFilter = new ExplorerCrossFilter();
 
   private syncPollTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -117,6 +123,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.loading = true;
     this.dataFirst = 0;
     this.datasetRecords = [];
+    this.crossFilter.clear();
     this.stopSyncPolling();
     this.cdr.markForCheck();
 
@@ -292,6 +299,82 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       }))
       .filter(item => item.count > 0)
       .sort((a, b) => b.count - a.count);
+  }
+
+  statusBarItems(): BarChartItem[] {
+    return this.statusBreakdown().map(row => ({
+      id: row.label,
+      label: row.label,
+      value: row.count
+    }));
+  }
+
+  allStateBarItems(): BarChartItem[] {
+    const metricByState = new Map(
+      this.stateMetrics.map(m => [normalizeStateName(m.state), m])
+    );
+    return INDIA_STATE_NAMES.map(name => {
+      const metric = metricByState.get(normalizeStateName(name));
+      return {
+        id: name,
+        label: name,
+        value: metric?.value ?? 0
+      };
+    }).sort((a, b) => b.value - a.value);
+  }
+
+  crossFilterSelectedState(): string | null {
+    return this.crossFilter.states.size ? [...this.crossFilter.states][0] : null;
+  }
+
+  crossFilterSelectedStatus(): string | null {
+    return this.crossFilter.statuses.size ? [...this.crossFilter.statuses][0] : null;
+  }
+
+  statusBarSelectedIds(): string[] {
+    return [...this.crossFilter.statuses];
+  }
+
+  statusBarDimmedIds(): string[] {
+    if (!this.crossFilter.active || this.crossFilter.statuses.size === 0) {
+      return [];
+    }
+    return this.statusBarItems()
+      .filter(item => !this.crossFilter.isStatusSelected(item.id))
+      .map(item => item.id);
+  }
+
+  stateBarSelectedIds(): string[] {
+    return [...this.crossFilter.states];
+  }
+
+  stateBarDimmedIds(): string[] {
+    if (!this.crossFilter.active || this.crossFilter.states.size === 0) {
+      return [];
+    }
+    return this.allStateBarItems()
+      .filter(item => !this.crossFilter.isStateSelected(item.id))
+      .map(item => item.id);
+  }
+
+  onMapStateClick(stateName: string): void {
+    this.crossFilter.toggleState(stateName);
+    this.cdr.markForCheck();
+  }
+
+  onStatusBarClick(item: BarChartItem): void {
+    this.crossFilter.toggleStatus(item.label);
+    this.cdr.markForCheck();
+  }
+
+  onStateBarClick(item: BarChartItem): void {
+    this.crossFilter.toggleState(item.label);
+    this.cdr.markForCheck();
+  }
+
+  clearCrossFilters(): void {
+    this.crossFilter.clear();
+    this.cdr.markForCheck();
   }
 
   topStates(limit = 8): StateMetric[] {

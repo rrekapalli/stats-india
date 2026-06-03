@@ -3,9 +3,11 @@ import {
   ChangeDetectorRef,
   Component,
   ElementRef,
+  EventEmitter,
   Input,
   OnChanges,
   OnDestroy,
+  Output,
   SimpleChanges,
   ViewChild,
   inject
@@ -68,6 +70,10 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @Input() totalForPercent = 0;
   @Input() datasetTitle = '';
   @Input() datasetCategory = '';
+  @Input() selectedState: string | null = null;
+  @Input() dimUnselected = false;
+
+  @Output() stateClick = new EventEmitter<string>();
 
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;
@@ -83,7 +89,6 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   tooltipY = 0;
 
   private zoomBehavior: ReturnType<typeof zoom<SVGSVGElement, unknown>> | null = null;
-  private selectedState: string | null = null;
 
   ngAfterViewInit(): void {
     this.renderMap();
@@ -91,7 +96,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if ((changes['metrics'] || changes['totalForPercent']) && this.zoomLayerRef) {
+    if (this.zoomLayerRef && (changes['metrics'] || changes['totalForPercent'] || changes['selectedState'] || changes['dimUnselected'])) {
       this.renderMap();
     }
   }
@@ -141,12 +146,25 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
     const paths = layer.selectAll<SVGPathElement, MapLocation>('path.state-path')
       .data(locations, d => d.id)
       .join('path')
-      .attr('class', d => 'state-path' + (this.selectedState === d.name ? ' selected' : ''))
+      .attr('class', d => {
+        const classes = ['state-path'];
+        if (this.selectedState === d.name) {
+          classes.push('selected');
+        }
+        if (this.isDimmed(d.name, valueByState)) {
+          classes.push('dimmed');
+        }
+        return classes.join(' ');
+      })
       .attr('d', d => d.path)
       .attr('fill', d => {
         const metric = valueByState.get(this.normalizeName(d.name));
+        if (this.isDimmed(d.name, valueByState)) {
+          return '#e2e8f0';
+        }
         return metric == null ? '#e2e8f0' : color(metric.value);
       })
+      .attr('opacity', d => (this.isDimmed(d.name, valueByState) ? 0.35 : 1))
       .style('cursor', 'pointer');
 
     paths
@@ -162,9 +180,21 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       });
 
     paths.on('click', (_event, d) => {
-      this.selectedState = this.selectedState === d.name ? null : d.name;
-      this.renderMap();
+      this.stateClick.emit(d.name);
     });
+  }
+
+  private isDimmed(
+    stateName: string,
+    valueByState: Map<string, StateMetric>
+  ): boolean {
+    if (!this.dimUnselected) {
+      return false;
+    }
+    if (this.selectedState && this.selectedState === stateName) {
+      return false;
+    }
+    return !this.selectedState || this.selectedState !== stateName;
   }
 
   private showTooltip(

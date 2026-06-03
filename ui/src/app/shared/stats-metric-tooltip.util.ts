@@ -87,6 +87,23 @@ function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+export function formatCompactThousands(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return '0';
+  }
+  if (value < 1000) {
+    return String(Math.round(value));
+  }
+  if (value < 1_000_000) {
+    const thousands = value / 1000;
+    const rounded = Math.round(thousands * 10) / 10;
+    return Number.isInteger(rounded) ? `${rounded}K` : `${rounded.toFixed(1)}K`;
+  }
+  const millions = value / 1_000_000;
+  const rounded = Math.round(millions * 10) / 10;
+  return Number.isInteger(rounded) ? `${rounded}M` : `${rounded.toFixed(1)}M`;
+}
+
 export function sumValues(values: number[]): number {
   return values.reduce((sum, v) => sum + (Number.isFinite(v) ? v : 0), 0);
 }

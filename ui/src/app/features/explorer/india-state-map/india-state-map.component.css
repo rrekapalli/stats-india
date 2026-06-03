@@ -81,6 +81,10 @@ svg {
   stroke-width: 1.2;
 }
 
+:host ::ng-deep .state-path.dimmed {
+  opacity: 0.35;
+}
+
 :host ::ng-deep .state-path.selected {
   stroke: #0f172a;
   stroke-width: 1.4;

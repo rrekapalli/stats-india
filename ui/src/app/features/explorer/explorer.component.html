@@ -83,6 +83,12 @@
                 ({{ syncProgressPercent() }}%)
               </p>
             }
+            @if (crossFilter.active) {
+              <div class="crossfilter-banner">
+                <span>Filtered: {{ crossFilter.summary() }}</span>
+                <button type="button" class="crossfilter-clear" (click)="clearCrossFilters()">Clear</button>
+              </div>
+            }
             <div class="viz-dashboard">
               @if (loading) {
                 <p class="muted center dashboard-loading">Loading visualizations…</p>
@@ -112,31 +118,26 @@
                     [totalForPercent]="mapTotalForPercent()"
                     [datasetTitle]="datasetTitleLabel()"
                     [datasetCategory]="datasetCategoryLabel()"
-                    [embedded]="true" />
+                    [selectedState]="crossFilterSelectedState()"
+                    [dimUnselected]="crossFilter.states.size > 0"
+                    [embedded]="true"
+                    (stateClick)="onMapStateClick($event)" />
                 </article>
 
                 <article class="dashboard-widget widget-status">
                   <header class="widget-header">Company status</header>
-                  <div class="widget-body">
-                    @if (statusBreakdown().length) {
-                      <ul class="bar-list">
-                        @for (row of statusBreakdown(); track row.label) {
-                          <li [pTooltip]="statusRowTooltip(row)"
-                              [escape]="false"
-                              tooltipPosition="left"
-                              tooltipStyleClass="stats-metric-tooltip"
-                              [fitContent]="true">
-                            <div class="bar-row">
-                              <span class="bar-label">{{ row.label }}</span>
-                              <span class="bar-value">{{ row.count | number }} ({{ statusPercent(row.count) }})</span>
-                            </div>
-                            <div class="bar-track">
-                              <div class="bar-fill"
-                                   [style.width.%]="statusTotal() ? (row.count / statusTotal()) * 100 : 0"></div>
-                            </div>
-                          </li>
-                        }
-                      </ul>
+                  <div class="widget-body widget-chart-body">
+                    @if (statusBarItems().length) {
+                      <app-bar-chart
+                        orientation="vertical"
+                        [items]="statusBarItems()"
+                        [selectedIds]="statusBarSelectedIds()"
+                        [dimmedIds]="statusBarDimmedIds()"
+                        [unit]="stateMetrics[0]?.unit ?? 'records'"
+                        [total]="statusTotal()"
+                        [datasetTitle]="datasetTitleLabel()"
+                        [datasetCategory]="datasetCategoryLabel()"
+                        (barClick)="onStatusBarClick($event)" />
                     } @else {
                       <p class="muted widget-empty">No status breakdown for this dataset.</p>
                     }
@@ -144,32 +145,18 @@
                 </article>
 
                 <article class="dashboard-widget widget-states">
-                  <header class="widget-header">Top states</header>
-                  <div class="widget-body widget-table-wrap">
-                    @if (topStates().length) {
-                      <table class="mini-table">
-                        <thead>
-                          <tr>
-                            <th>State</th>
-                            <th>Count</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          @for (row of topStates(); track row.state) {
-                            <tr [pTooltip]="stateMetricTooltip(row)"
-                                [escape]="false"
-                                tooltipPosition="left"
-                                tooltipStyleClass="stats-metric-tooltip"
-                                [fitContent]="true">
-                              <td>{{ row.state }}</td>
-                              <td>{{ row.value | number:'1.0-0' }} {{ row.unit }}</td>
-                            </tr>
-                          }
-                        </tbody>
-                      </table>
-                    } @else {
-                      <p class="muted widget-empty">No state metrics yet.</p>
-                    }
+                  <header class="widget-header">States</header>
+                  <div class="widget-body widget-chart-body widget-states-scroll">
+                    <app-bar-chart
+                      orientation="horizontal"
+                      [items]="allStateBarItems()"
+                      [selectedIds]="stateBarSelectedIds()"
+                      [dimmedIds]="stateBarDimmedIds()"
+                      [unit]="stateMetrics[0]?.unit ?? ''"
+                      [total]="mapTotalForPercent()"
+                      [datasetTitle]="datasetTitleLabel()"
+                      [datasetCategory]="datasetCategoryLabel()"
+                      (barClick)="onStateBarClick($event)" />
                   </div>
                 </article>
               }
