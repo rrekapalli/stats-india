@@ -101,6 +101,8 @@ export class ExplorerComponent implements OnInit {
 
   private unfilteredStateMetrics: StateMetric[] = [];
   private unfilteredDimensions: DimensionGroup[] = [];
+  /** Ignores stale cross-filter HTTP responses when filters change quickly. */
+  private crossFilterRequestId = 0;
   filterApplying = false;
 
   readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
@@ -219,19 +221,27 @@ export class ExplorerComponent implements OnInit {
     if (!this.isLiveDataset() || !this.selectedDataset) {
       return;
     }
+    const requestId = ++this.crossFilterRequestId;
     this.filterApplying = true;
     this.cdr.markForCheck();
     this.api
       .getExploreFiltered(this.selectedDataset.id, this.crossFilter.getFilters())
       .subscribe({
         next: data => {
+          if (requestId !== this.crossFilterRequestId) {
+            return;
+          }
           this.stateMetrics = data.stateMetrics;
           this.dimensions = data.dimensionGroups;
+          this.recordsCached = data.recordsCached;
           this.filterApplying = false;
           this.updateAccordionPanels(this.dimensions);
           this.cdr.markForCheck();
         },
         error: () => {
+          if (requestId !== this.crossFilterRequestId) {
+            return;
+          }
           this.filterApplying = false;
           this.cdr.markForCheck();
         }
@@ -249,7 +259,14 @@ export class ExplorerComponent implements OnInit {
 
   addCrossFilter(filterColumn: string, value: string, dimensionLabel?: string): void {
     const label = dimensionLabel ?? this.resolveDimensionLabel(filterColumn);
-    const added = this.crossFilter.add({ filterColumn, dimensionLabel: label, value });
+    const chip: ExplorerFilterChip = { filterColumn, dimensionLabel: label, value };
+    if (this.crossFilter.isValueSelected(filterColumn, value)) {
+      this.crossFilter.remove(chip);
+      this.cdr.markForCheck();
+      this.applyCrossFiltersFromServer();
+      return;
+    }
+    const added = this.crossFilter.add(chip);
     if (!added) {
       return;
     }
@@ -347,8 +364,18 @@ export class ExplorerComponent implements OnInit {
     return this.crossFilter.selectedValues(dimensionId);
   }
 
-  dimensionBarDimmedIds(_dimensionId: string): string[] {
-    return [];
+  dimensionBarDimmedIds(dimensionId: string): string[] {
+    if (!this.crossFilter.hasFilterForColumn(dimensionId)) {
+      return [];
+    }
+    const selected = new Set(this.crossFilter.selectedValues(dimensionId));
+    const group = this.dimensionGroup(dimensionId);
+    if (!group) {
+      return [];
+    }
+    return group.items
+      .map(item => item.label)
+      .filter(label => !selected.has(label));
   }
 
   onSlotItemClick(slot: VisualizationSlot, item: BarChartItem): void {
@@ -369,6 +396,7 @@ export class ExplorerComponent implements OnInit {
   }
 
   clearCrossFilters(): void {
+    this.crossFilterRequestId++;
     this.crossFilter.clear();
     this.stateMetrics = this.unfilteredStateMetrics;
     this.dimensions = this.unfilteredDimensions;

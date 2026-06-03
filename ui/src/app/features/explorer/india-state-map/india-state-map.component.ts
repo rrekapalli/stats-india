@@ -118,6 +118,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   private listHoveredState: string | null = null;
   private choroplethScale: ReturnType<typeof scaleSequential<string>> | null = null;
   private valueByStateCache = new Map<string, StateMetric>();
+  private pathClickOrigin: { x: number; y: number } | null = null;
 
   /** Preview a state from an external control (e.g. ranking list hover). */
   showStatePreview(stateName: string): void {
@@ -150,10 +151,23 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (this.zoomLayerRef && (changes['metrics'] || changes['totalForPercent'] || changes['selectedState'] || changes['dimUnselected'])) {
+    if (this.zoomLayerRef && (
+      changes['metrics'] ||
+      changes['totalForPercent'] ||
+      changes['selectedState'] ||
+      changes['dimUnselected']
+    )) {
       this.renderMap();
     }
-    if (changes['metrics'] || changes['totalForPercent'] || changes['datasetTitle'] || changes['datasetCategory'] || changes['unit']) {
+    if (
+      changes['metrics'] ||
+      changes['totalForPercent'] ||
+      changes['selectedState'] ||
+      changes['dimUnselected'] ||
+      changes['datasetTitle'] ||
+      changes['datasetCategory'] ||
+      changes['unit']
+    ) {
       if (!this.hideInfoPanel) {
         this.refreshInfoPanel();
       }
@@ -227,11 +241,22 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       .on('mouseleave', () => {
         this.mapHoveredLocation = null;
         this.syncHoverPresentation();
+      })
+      .on('mousedown', (event: MouseEvent) => {
+        this.pathClickOrigin = { x: event.clientX, y: event.clientY };
+      })
+      .on('click', (event: MouseEvent, d) => {
+        if (this.pathClickOrigin) {
+          const dx = event.clientX - this.pathClickOrigin.x;
+          const dy = event.clientY - this.pathClickOrigin.y;
+          this.pathClickOrigin = null;
+          if (dx * dx + dy * dy > 9) {
+            return;
+          }
+        }
+        event.stopPropagation();
+        this.stateClick.emit(d.name);
       });
-
-    paths.on('click', (_event, d) => {
-      this.stateClick.emit(d.name);
-    });
 
     this.updateHoverStyles();
   }
@@ -350,6 +375,19 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
         total
       );
       return;
+    }
+    if (this.selectedState && this.dimUnselected) {
+      const valueByState = new Map(this.metrics.map(m => [this.normalizeName(m.state), m]));
+      const metric = valueByState.get(this.normalizeName(this.selectedState));
+      const total = this.resolveTotal();
+      if (metric) {
+        this.updateInfoPanel(
+          { name: this.selectedState, id: '', path: '' },
+          metric,
+          total
+        );
+        return;
+      }
     }
     this.infoPanelHtml = this.buildNationSummaryHtml(this.resolveTotal());
     this.cdr.markForCheck();

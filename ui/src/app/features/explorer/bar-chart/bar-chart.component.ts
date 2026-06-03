@@ -150,7 +150,7 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const verticalBottomMargin = Math.max(56, Math.round(chartHeight * 0.22));
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
-      : { top: 8, right: 6, bottom: verticalBottomMargin, left: 32 };
+      : { top: 16, right: 6, bottom: verticalBottomMargin, left: 32 };
 
     const innerWidth = chartWidth - margin.left - margin.right;
     const innerHeight = chartHeight - margin.top - margin.bottom;
@@ -344,6 +344,36 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       };
 
       bindInteractions(bars);
+
+      const valueLabels = g
+        .selectAll<SVGTextElement, BarChartItem>('text.bar-value-label')
+        .data(this.items.filter(d => d.value > 0), d => d.id)
+        .join('text')
+        .attr('class', 'bar-value-label')
+        .attr('x', d => (x(d.id) ?? 0) + x.bandwidth() / 2)
+        .attr('y', d => y(d.value) - 3)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', '8px')
+        .attr('fill', '#64748b')
+        .text(d => formatCompactThousands(d.value))
+        .style('pointer-events', 'none');
+
+      if (this.staticInfoPanel) {
+        valueLabels
+          .style('pointer-events', 'auto')
+          .style('cursor', 'pointer')
+          .on('mouseenter', (event: MouseEvent, d: BarChartItem) => {
+            this.hoveredItem = d;
+            this.updateInfoPanel(d, percentTotal);
+          })
+          .on('mouseleave', () => {
+            this.hoveredItem = null;
+            this.refreshInfoPanel(percentTotal);
+          })
+          .on('click', (_event: MouseEvent, d: BarChartItem) => {
+            this.barClick.emit(d);
+          });
+      }
 
       if (this.staticInfoPanel) {
         this.refreshInfoPanel(percentTotal);
