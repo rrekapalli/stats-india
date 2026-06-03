@@ -26,8 +26,10 @@ export interface PieChartItem {
   template: `
     <div class="pie-chart-host" #host>
       <div class="pie-chart-viewport" #viewport>
-        <svg #svg></svg>
-        <div class="pie-center-panel" [innerHTML]="centerPanelHtml"></div>
+        <div class="pie-chart-canvas" #canvas>
+          <svg #svg></svg>
+        </div>
+        <div class="pie-info-panel" [innerHTML]="infoPanelHtml"></div>
       </div>
     </div>
   `,
@@ -45,9 +47,10 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLDivElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('canvas', { static: true }) canvasRef!: ElementRef<HTMLDivElement>;
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
 
-  centerPanelHtml = '';
+  infoPanelHtml = '';
 
   private resizeObserver: ResizeObserver | null = null;
   private pendingRenderFrame: number | null = null;
@@ -66,7 +69,9 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       (changes['items'] || changes['total'] || changes['unit'] || changes['summaryTitle'])
     ) {
       this.scheduleRender();
-      this.refreshCenterPanel();
+    }
+    if (changes['items'] || changes['total'] || changes['unit'] || changes['datasetTitle'] || changes['datasetCategory']) {
+      this.refreshInfoPanel();
     }
   }
 
@@ -94,11 +99,11 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     return this.items.reduce((sum, item) => sum + item.value, 0);
   }
 
-  private refreshCenterPanel(): void {
+  private refreshInfoPanel(): void {
     if (this.hoveredItem) {
-      this.centerPanelHtml = this.buildSlicePanelHtml(this.hoveredItem);
+      this.infoPanelHtml = this.buildSlicePanelHtml(this.hoveredItem);
     } else {
-      this.centerPanelHtml = this.buildSummaryPanelHtml();
+      this.infoPanelHtml = this.buildSummaryPanelHtml();
     }
     this.cdr.markForCheck();
   }
@@ -111,7 +116,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const pctLabel = pctTotal > 0 ? formatMetricPercent(sum, pctTotal) : null;
     const lines = sorted
       .slice(0, 7)
-      .map(item => this.buildCenterLineHtml(item.label, item.value, pctTotal))
+      .map(item => this.buildInfoLineHtml(item.label, item.value, pctTotal))
       .join('');
     const footer = [this.datasetCategory, this.datasetTitle].filter(Boolean).join(' · ');
 
@@ -121,7 +126,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       `<div class="stats-tooltip-value">${escapeHtml(formatMetricNumber(sum))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>`,
       pctLabel ? `<div class="stats-tooltip-percent">${escapeHtml(pctLabel)} of ${escapeHtml(formatMetricNumber(pctTotal))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>` : '',
       '<div class="stats-tooltip-subtitle">Hover a slice for detail</div>',
-      `<div class="pie-center-lines">${lines}</div>`,
+      `<div class="pie-info-lines">${lines}</div>`,
       footer ? `<div class="stats-tooltip-footer">${escapeHtml(footer)}</div>` : '',
       '</div>'
     ].join('');
@@ -137,32 +142,32 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       `<div class="stats-tooltip-title">${escapeHtml(item.label)}</div>`,
       `<div class="stats-tooltip-value">${escapeHtml(formatMetricNumber(item.value))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>`,
       pctLabel ? `<div class="stats-tooltip-percent">${escapeHtml(pctLabel)} of ${escapeHtml(formatMetricNumber(total))}${this.unit ? ` ${escapeHtml(this.unit)}` : ''}</div>` : '',
-      `<div class="pie-center-lines">${this.buildCenterLineHtml(item.label, item.value, total)}</div>`,
+      `<div class="pie-info-lines">${this.buildInfoLineHtml(item.label, item.value, total)}</div>`,
       footer ? `<div class="stats-tooltip-footer">${escapeHtml(footer)}</div>` : '',
       '</div>'
     ].join('');
   }
 
-  private buildCenterLineHtml(label: string, value: number, total: number): string {
+  private buildInfoLineHtml(label: string, value: number, total: number): string {
     const pct = formatMetricPercent(value, total);
-    return `<div class="pie-center-line">
-      <span class="pie-center-swatch" style="background:${this.color(label)}"></span>
-      <span class="pie-center-line-label">${escapeHtml(label)}</span>
-      <span class="pie-center-line-value">${escapeHtml(formatMetricNumber(value))}${pct ? ` · ${escapeHtml(pct)}` : ''}</span>
+    return `<div class="pie-info-line">
+      <span class="pie-info-swatch" style="background:${this.color(label)}"></span>
+      <span class="pie-info-line-label">${escapeHtml(label)}</span>
+      <span class="pie-info-line-value">${escapeHtml(formatMetricNumber(value))}${pct ? ` · ${escapeHtml(pct)}` : ''}</span>
     </div>`;
   }
 
   private render(): void {
-    const viewport = this.viewportRef.nativeElement;
-    const svgEl = this.svgRef.nativeElement;
-    if (!viewport || !svgEl) {
+    const canvas = this.canvasRef?.nativeElement;
+    const svgEl = this.svgRef?.nativeElement;
+    if (!canvas || !svgEl) {
       return;
     }
 
-    const rect = viewport.getBoundingClientRect();
-    const width = Math.max(Math.floor(rect.width), 80);
-    const height = Math.max(Math.floor(rect.height), 80);
-    if (height < 40) {
+    const rect = canvas.getBoundingClientRect();
+    const width = Math.max(Math.floor(rect.width), 60);
+    const height = Math.max(Math.floor(rect.height), 60);
+    if (height < 40 || width < 40) {
       this.scheduleRender();
       return;
     }
@@ -171,7 +176,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const cx = width / 2;
     const cy = height / 2;
     const radius = Math.min(width, height) / 2 - 6;
-    const innerRadius = radius * 0.5;
+    const innerRadius = radius * 0.38;
 
     svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svgEl.setAttribute('width', '100%');
@@ -217,7 +222,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
           .transition()
           .duration(200)
           .attr('d', arcHover(d) ?? '');
-        this.refreshCenterPanel();
+        this.refreshInfoPanel();
       })
       .on('mouseleave', (event, d) => {
         this.hoveredItem = null;
@@ -225,7 +230,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
           .transition()
           .duration(200)
           .attr('d', arcGen(d) ?? '');
-        this.refreshCenterPanel();
+        this.refreshInfoPanel();
       });
 
     arcs
@@ -244,7 +249,7 @@ export class PieChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       g.selectAll('path.slice').remove();
     }
 
-    this.refreshCenterPanel();
+    this.refreshInfoPanel();
   }
 }
 

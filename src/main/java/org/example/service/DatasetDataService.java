@@ -29,11 +29,6 @@ public class DatasetDataService {
             throw new IllegalArgumentException("No live data provider registered for dataset: " + resourceId);
         }
 
-        Optional<DatasetCacheMeta> meta = datasetSyncService.getMeta(resourceId);
-        if (meta.isEmpty() || meta.get().status() != DatasetFetchStatus.READY) {
-            datasetSyncService.refreshIfNeeded(resourceId);
-        }
-
         return mcaCompanyMasterDatasetService.getFromCache(offset, limit, includeRecords);
     }
 

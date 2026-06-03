@@ -147,6 +147,9 @@
                     @if (statusBarItems().length) {
                       <app-bar-chart
                         orientation="vertical"
+                        [staticInfoPanel]="true"
+                        infoPanelAnchor="top-right"
+                        summaryTitle="All statuses"
                         [items]="statusBarItems()"
                         [selectedIds]="statusBarSelectedIds()"
                         [dimmedIds]="statusBarDimmedIds()"
@@ -167,6 +170,7 @@
                     <app-bar-chart
                       orientation="horizontal"
                       [staticInfoPanel]="true"
+                      infoPanelAnchor="bottom-right"
                       summaryTitle="All states"
                       [items]="allStateBarItems()"
                       [selectedIds]="stateBarSelectedIds()"

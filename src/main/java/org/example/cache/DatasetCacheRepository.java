@@ -107,6 +107,33 @@ public class DatasetCacheRepository {
         jdbc.update("DELETE FROM dataset_aggregate WHERE resource_id = ?", resourceId);
     }
 
+    /** Continue an in-progress cache without wiping existing rows or aggregates. */
+    public void resumeSync(String resourceId, String title, String description, long portalTotal) {
+        Instant now = Instant.now();
+        jdbc.update(
+                """
+                        INSERT INTO dataset_meta (
+                            resource_id, title, description, portal_total, cached_records,
+                            status, fetched_at, sync_started_at, last_error
+                        ) VALUES (?, ?, ?, ?, 0, ?, NULL, ?, NULL)
+                        ON CONFLICT(resource_id) DO UPDATE SET
+                            title = excluded.title,
+                            description = excluded.description,
+                            portal_total = excluded.portal_total,
+                            status = ?,
+                            sync_started_at = excluded.sync_started_at,
+                            last_error = NULL
+                        """,
+                resourceId,
+                title,
+                description,
+                portalTotal,
+                DatasetFetchStatus.SYNCING.name(),
+                now.toString(),
+                DatasetFetchStatus.SYNCING.name()
+        );
+    }
+
     public void updateProgress(String resourceId, long cachedRecords) {
         jdbc.update(
                 "UPDATE dataset_meta SET cached_records = ? WHERE resource_id = ?",

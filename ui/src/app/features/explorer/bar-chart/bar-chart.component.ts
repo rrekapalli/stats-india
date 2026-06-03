@@ -29,7 +29,9 @@ export interface BarChartItem {
          #host
          [class.bar-chart-host-horizontal]="orientation === 'horizontal'"
          [class.bar-chart-host-vertical]="orientation === 'vertical'"
-         [class.bar-chart-host-static-panel]="staticInfoPanel">
+         [class.bar-chart-host-static-panel]="staticInfoPanel"
+         [class.bar-chart-info-top-right]="staticInfoPanel && infoPanelAnchor === 'top-right'"
+         [class.bar-chart-info-bottom-right]="staticInfoPanel && infoPanelAnchor === 'bottom-right'">
       <div class="bar-chart-viewport" #viewport>
         @if (staticInfoPanel) {
           <div class="chart-info-panel" [innerHTML]="infoPanelHtml"></div>
@@ -58,6 +60,7 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() datasetTitle = '';
   @Input() datasetCategory = '';
   @Input() staticInfoPanel = false;
+  @Input() infoPanelAnchor: 'top-right' | 'bottom-right' = 'bottom-right';
   @Input() summaryTitle = 'All states';
 
   @Output() barClick = new EventEmitter<BarChartItem>();
@@ -341,6 +344,10 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
       };
 
       bindInteractions(bars);
+
+      if (this.staticInfoPanel) {
+        this.refreshInfoPanel(percentTotal);
+      }
     }
   }
 
@@ -353,12 +360,16 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
     const sum = this.items.reduce((s, i) => s + i.value, 0);
     const withData = this.items.filter(i => i.value > 0).length;
     const top = [...this.items].sort((a, b) => b.value - a.value).find(i => i.value > 0);
+    const dimLabel = this.orientation === 'horizontal' ? 'States / UTs' : 'Statuses';
     const rows: { label: string; value: string }[] = [
-      { label: 'States / UTs', value: String(this.items.length) },
+      { label: dimLabel, value: String(this.items.length) },
       { label: 'With data', value: String(withData) }
     ];
     if (top) {
-      rows.push({ label: 'Top state', value: `${top.label} (${top.value.toLocaleString()})` });
+      rows.push({
+        label: this.orientation === 'horizontal' ? 'Top state' : 'Top status',
+        value: `${top.label} (${top.value.toLocaleString()})`
+      });
     }
     this.infoPanelHtml = buildMetricTooltipHtml({
       title: this.summaryTitle,

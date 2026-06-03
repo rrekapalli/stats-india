@@ -38,13 +38,22 @@
 
 .bar-chart-host-static-panel .chart-info-panel {
   position: absolute;
-  bottom: 0.35rem;
   right: 0.35rem;
-  left: auto;
-  top: auto;
   z-index: 5;
   pointer-events: none;
-  max-width: min(88%, 240px);
+  max-width: min(42%, 240px);
+}
+
+.bar-chart-info-bottom-right .chart-info-panel {
+  bottom: 0.35rem;
+  top: auto;
+  left: auto;
+}
+
+.bar-chart-info-top-right .chart-info-panel {
+  top: 0.35rem;
+  bottom: auto;
+  left: auto;
 }
 
 :host ::ng-deep .chart-info-panel .stats-tooltip {
