@@ -16,6 +16,9 @@ PROXMOX_DIR="${DEPLOYMENT_DIR}/proxmox"
 ARTIFACTS_DIR="${DEPLOYMENT_DIR}/artifacts"
 STATIC_DIR="${ROOT_DIR}/src/main/resources/static"
 
+# shellcheck source=deployment/lib/resolve-mvn.sh
+source "${DEPLOYMENT_DIR}/lib/resolve-mvn.sh"
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -77,12 +80,17 @@ fi
 
 build_artifacts() {
     mkdir -p "$ARTIFACTS_DIR"
+    local mvn_bin
+    mvn_bin="$(resolve_mvn)" || {
+        log_error "Maven (mvn) not found. Install Maven, add it to PATH, or set MVN=/path/to/mvn"
+        exit 1
+    }
 
     if [[ "$DEPLOY_API" == true && "$DEPLOY_UI" == true ]]; then
         log_info "Building API + UI (Maven)..."
         local mvn_args=(clean package)
         [[ "$SKIP_TESTS" == true ]] && mvn_args+=(-DskipTests)
-        (cd "$ROOT_DIR" && mvn "${mvn_args[@]}")
+        (cd "$ROOT_DIR" && "$mvn_bin" "${mvn_args[@]}")
 
         local jar
         jar=$(find "$ROOT_DIR/target" -maxdepth 1 -name 'stats-india-*.jar' ! -name '*-sources.jar' | head -n1)
@@ -93,7 +101,7 @@ build_artifacts() {
         log_info "Building API only (Maven, skip frontend)..."
         local mvn_args=(clean package -Dfrontend.skip=true)
         [[ "$SKIP_TESTS" == true ]] && mvn_args+=(-DskipTests)
-        (cd "$ROOT_DIR" && mvn "${mvn_args[@]}")
+        (cd "$ROOT_DIR" && "$mvn_bin" "${mvn_args[@]}")
 
         local jar
         jar=$(find "$ROOT_DIR/target" -maxdepth 1 -name 'stats-india-*.jar' ! -name '*-sources.jar' | head -n1)

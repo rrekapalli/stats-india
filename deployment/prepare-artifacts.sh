@@ -16,16 +16,25 @@ log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
+# shellcheck source=lib/resolve-mvn.sh
+source "${SCRIPT_DIR}/lib/resolve-mvn.sh"
+
 SKIP_TESTS="${SKIP_TESTS:-true}"
 
 main() {
     log_info "Building Stats India (Maven + Angular via frontend-maven-plugin)..."
     mkdir -p "$ARTIFACTS_DIR"
 
+    local mvn_bin
+    mvn_bin="$(resolve_mvn)" || {
+        log_error "Maven (mvn) not found. Install Maven, add it to PATH, or set MVN=/path/to/mvn"
+        exit 1
+    }
+
     local mvn_args=(clean package)
     [[ "$SKIP_TESTS" == true ]] && mvn_args+=(-DskipTests)
 
-    (cd "$ROOT_DIR" && mvn "${mvn_args[@]}")
+    (cd "$ROOT_DIR" && "$mvn_bin" "${mvn_args[@]}")
 
     local jar
     jar=$(find "$ROOT_DIR/target" -maxdepth 1 -name 'stats-india-*.jar' ! -name '*-sources.jar' | head -n1)
