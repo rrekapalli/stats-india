@@ -22,3 +22,96 @@ app-root {
   min-height: 100%;
   height: 100%;
 }
+
+/* Rich metric tooltips (PrimeNG + map overlay) — single panel only */
+.p-tooltip.stats-metric-tooltip {
+  padding: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.p-tooltip.stats-metric-tooltip .p-tooltip-text {
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: inherit;
+  max-width: min(92vw, 280px);
+}
+
+.p-tooltip.stats-metric-tooltip .p-tooltip-arrow {
+  display: none;
+}
+
+.stats-tooltip {
+  background: #fff;
+  border: 1px solid var(--p-surface-border, #e2e8f0);
+  border-radius: 1px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.1);
+  padding: 0.45rem 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--p-text-color, #0f172a);
+}
+
+.stats-tooltip-title {
+  font-weight: 700;
+  font-size: 0.78rem;
+  margin-bottom: 0.15rem;
+}
+
+.stats-tooltip-value {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: var(--p-primary-color, #1565c0);
+}
+
+.stats-tooltip-percent {
+  margin-top: 0.1rem;
+  font-weight: 600;
+  color: var(--p-text-color, #0f172a);
+}
+
+.stats-tooltip-subtitle {
+  margin-top: 0.25rem;
+  color: var(--p-text-muted-color, #64748b);
+}
+
+.stats-tooltip-rows {
+  margin: 0.35rem 0 0;
+  padding: 0;
+}
+
+.stats-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.12rem 0;
+  border-top: 1px solid var(--p-surface-border, #f1f5f9);
+}
+
+.stats-tooltip-row:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.stats-tooltip-row dt {
+  margin: 0;
+  font-weight: 500;
+  color: var(--p-text-muted-color, #64748b);
+}
+
+.stats-tooltip-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+}
+
+.stats-tooltip-footer {
+  margin-top: 0.35rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid var(--p-surface-border, #f1f5f9);
+  font-size: 0.62rem;
+  color: var(--p-text-muted-color, #94a3b8);
+}

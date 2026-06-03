@@ -1,17 +1,20 @@
 import {
   AfterViewInit,
+  ChangeDetectorRef,
   Component,
   ElementRef,
   Input,
   OnChanges,
   OnDestroy,
   SimpleChanges,
-  ViewChild
+  ViewChild,
+  inject
 } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
 import { select, zoom, zoomIdentity, scaleSequential, interpolateBlues } from 'd3';
 import indiaMap from '@svg-maps/india';
 import { StateMetric } from '../../../models/dataset.models';
+import { buildMetricTooltipHtml } from '../../../shared/stats-metric-tooltip.util';
 
 interface MapLocation {
   name: string;
@@ -38,6 +41,12 @@ interface MapLocation {
              aria-label="Zoomable India state map">
           <g #zoomLayer></g>
         </svg>
+        @if (tooltipVisible) {
+          <div class="map-html-tooltip"
+               [innerHTML]="tooltipHtml"
+               [style.left.px]="tooltipX"
+               [style.top.px]="tooltipY"></div>
+        }
       </div>
       <div class="map-legend">
         <span>{{ legendMin | number:'1.0-1' }}</span>
@@ -50,17 +59,28 @@ interface MapLocation {
   styleUrl: './india-state-map.component.css'
 })
 export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestroy {
+  private readonly cdr = inject(ChangeDetectorRef);
+
   @Input() metrics: StateMetric[] = [];
   @Input() title = 'India — state view';
   @Input() unit = '';
   @Input() embedded = false;
+  @Input() totalForPercent = 0;
+  @Input() datasetTitle = '';
+  @Input() datasetCategory = '';
 
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;
+  @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
 
   readonly viewBox = indiaMap.viewBox;
   legendMin = 0;
   legendMax = 100;
+
+  tooltipVisible = false;
+  tooltipHtml = '';
+  tooltipX = 0;
+  tooltipY = 0;
 
   private zoomBehavior: ReturnType<typeof zoom<SVGSVGElement, unknown>> | null = null;
   private selectedState: string | null = null;
@@ -71,7 +91,7 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (changes['metrics'] && this.zoomLayerRef) {
+    if ((changes['metrics'] || changes['totalForPercent']) && this.zoomLayerRef) {
       this.renderMap();
     }
   }
@@ -101,10 +121,14 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 
   private renderMap(): void {
-    const valueByState = new Map(this.metrics.map(m => [this.normalizeName(m.state), m.value]));
+    const valueByState = new Map(this.metrics.map(m => [this.normalizeName(m.state), m]));
     const values = this.metrics.map(m => m.value);
     this.legendMin = values.length ? Math.min(...values) : 0;
     this.legendMax = values.length ? Math.max(...values) : 100;
+
+    const total = this.totalForPercent > 0
+      ? this.totalForPercent
+      : values.reduce((sum, v) => sum + v, 0);
 
     const color = scaleSequential(interpolateBlues)
       .domain([this.legendMin, this.legendMax || 1]);
@@ -120,23 +144,62 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
       .attr('class', d => 'state-path' + (this.selectedState === d.name ? ' selected' : ''))
       .attr('d', d => d.path)
       .attr('fill', d => {
-        const value = valueByState.get(this.normalizeName(d.name));
-        return value == null ? '#e2e8f0' : color(value);
+        const metric = valueByState.get(this.normalizeName(d.name));
+        return metric == null ? '#e2e8f0' : color(metric.value);
       })
       .style('cursor', 'pointer');
 
-    paths.selectAll('title').remove();
-    paths.append('title').text(d => {
-      const value = valueByState.get(this.normalizeName(d.name));
-      return value == null
-        ? `${d.name}: no data`
-        : `${d.name}: ${value} ${this.unit}`.trim();
-    });
+    paths
+      .on('mouseenter', (event: MouseEvent, d) => {
+        this.showTooltip(event, d, valueByState.get(this.normalizeName(d.name)), total);
+      })
+      .on('mousemove', (event: MouseEvent, d) => {
+        this.showTooltip(event, d, valueByState.get(this.normalizeName(d.name)), total);
+      })
+      .on('mouseleave', () => {
+        this.tooltipVisible = false;
+        this.cdr.markForCheck();
+      });
 
     paths.on('click', (_event, d) => {
       this.selectedState = this.selectedState === d.name ? null : d.name;
       this.renderMap();
     });
+  }
+
+  private showTooltip(
+    event: MouseEvent,
+    location: MapLocation,
+    metric: StateMetric | undefined,
+    total: number
+  ): void {
+    const rect = this.viewportRef.nativeElement.getBoundingClientRect();
+    this.tooltipX = event.clientX - rect.left + 12;
+    this.tooltipY = event.clientY - rect.top + 12;
+
+    if (!metric) {
+      this.tooltipHtml = buildMetricTooltipHtml({
+        title: location.name,
+        value: 'No data',
+        subtitle: 'Not present in this dataset sample',
+        datasetTitle: this.datasetTitle,
+        category: this.datasetCategory
+      });
+    } else {
+      this.tooltipHtml = buildMetricTooltipHtml({
+        title: metric.state,
+        value: metric.value,
+        total,
+        unit: metric.unit || this.unit,
+        subtitle: metric.stateCode ? `State code: ${metric.stateCode}` : undefined,
+        datasetTitle: this.datasetTitle,
+        category: this.datasetCategory,
+        rows: metric.year ? [{ label: 'Period', value: metric.year }] : []
+      });
+    }
+
+    this.tooltipVisible = true;
+    this.cdr.markForCheck();
   }
 
   private normalizeName(name: string): string {

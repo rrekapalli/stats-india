@@ -91,7 +91,12 @@
               } @else {
                 <div class="kpi-strip">
                   @for (tile of glanceTiles(); track tile.title) {
-                    <div class="kpi-tile">
+                    <div class="kpi-tile"
+                         [pTooltip]="tileTooltip(tile)"
+                         [escape]="false"
+                         tooltipPosition="bottom"
+                         tooltipStyleClass="stats-metric-tooltip"
+                         [fitContent]="true">
                       <span class="kpi-tile-title">{{ tile.title }}</span>
                       <span class="kpi-tile-value">{{ tile.value }}</span>
                       <span class="kpi-tile-subtitle">{{ tile.subtitle }}</span>
@@ -104,6 +109,9 @@
                     [metrics]="stateMetrics"
                     [title]="isLiveDataset() ? 'Companies by state' : (selectedDataset?.title ?? 'India map')"
                     [unit]="stateMetrics[0]?.unit ?? ''"
+                    [totalForPercent]="mapTotalForPercent()"
+                    [datasetTitle]="datasetTitleLabel()"
+                    [datasetCategory]="datasetCategoryLabel()"
                     [embedded]="true" />
                 </article>
 
@@ -113,14 +121,18 @@
                     @if (statusBreakdown().length) {
                       <ul class="bar-list">
                         @for (row of statusBreakdown(); track row.label) {
-                          <li>
+                          <li [pTooltip]="statusRowTooltip(row)"
+                              [escape]="false"
+                              tooltipPosition="left"
+                              tooltipStyleClass="stats-metric-tooltip"
+                              [fitContent]="true">
                             <div class="bar-row">
                               <span class="bar-label">{{ row.label }}</span>
-                              <span class="bar-value">{{ row.count | number }}</span>
+                              <span class="bar-value">{{ row.count | number }} ({{ statusPercent(row.count) }})</span>
                             </div>
                             <div class="bar-track">
                               <div class="bar-fill"
-                                   [style.width.%]="(row.count / maxStatusCount()) * 100"></div>
+                                   [style.width.%]="statusTotal() ? (row.count / statusTotal()) * 100 : 0"></div>
                             </div>
                           </li>
                         }
@@ -144,7 +156,11 @@
                         </thead>
                         <tbody>
                           @for (row of topStates(); track row.state) {
-                            <tr>
+                            <tr [pTooltip]="stateMetricTooltip(row)"
+                                [escape]="false"
+                                tooltipPosition="left"
+                                tooltipStyleClass="stats-metric-tooltip"
+                                [fitContent]="true">
                               <td>{{ row.state }}</td>
                               <td>{{ row.value | number:'1.0-0' }} {{ row.unit }}</td>
                             </tr>
@@ -185,7 +201,11 @@
                   </tr>
                 </ng-template>
                 <ng-template pTemplate="body" let-row>
-                  <tr>
+                  <tr [pTooltip]="recordTooltip(row)"
+                      [escape]="false"
+                      tooltipPosition="left"
+                      tooltipStyleClass="stats-metric-tooltip"
+                      [fitContent]="true">
                     <td>{{ row['companyName'] }}</td>
                     <td>{{ row['companyStateCode'] }}</td>
                     <td>{{ row['companyStatus'] }}</td>
@@ -207,7 +227,11 @@
                   </tr>
                 </ng-template>
                 <ng-template pTemplate="body" let-row>
-                  <tr>
+                  <tr [pTooltip]="stateMetricTooltip(row)"
+                      [escape]="false"
+                      tooltipPosition="left"
+                      tooltipStyleClass="stats-metric-tooltip"
+                      [fitContent]="true">
                     <td>{{ row.state }}</td>
                     <td>{{ row.stateCode }}</td>
                     <td>{{ row.value | number:'1.0-2' }}</td>
@@ -306,7 +330,11 @@
                       <p-accordion-content>
                         <ul class="dimension-list">
                           @for (item of group.items; track item.id) {
-                            <li>
+                            <li [pTooltip]="dimensionItemTooltip(item, group.id)"
+                                [escape]="false"
+                                tooltipPosition="left"
+                                tooltipStyleClass="stats-metric-tooltip"
+                                [fitContent]="true">
                               <strong>{{ item.label }}</strong>
                               <span>{{ item.description }}</span>
                               <small>{{ item.valueType }}</small>

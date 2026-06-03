@@ -50,6 +50,14 @@
   overflow: hidden;
   cursor: grab;
   background: #fff;
+  position: relative;
+}
+
+.map-html-tooltip {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  max-width: min(92vw, 280px);
 }
 
 .map-viewport:active {

@@ -7,15 +7,22 @@ import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { ScrollPanelModule } from 'primeng/scrollpanel';
 import { TagModule } from 'primeng/tag';
+import { TooltipModule } from 'primeng/tooltip';
 import { StatsApiService } from '../../services/stats-api.service';
 import {
   DatasetDataResponse,
   DatasetSummary,
   DimensionGroup,
+  DimensionItem,
   MCA_COMPANY_MASTER_RESOURCE_ID,
   StateMetric
 } from '../../models/dataset.models';
 import { IndiaStateMapComponent } from './india-state-map/india-state-map.component';
+import {
+  buildMetricTooltipHtml,
+  formatMetricPercent,
+  sumValues
+} from '../../shared/stats-metric-tooltip.util';
 
 type LeftDrawer = 'datasets' | 'categories' | null;
 type RightDrawer = 'dimensions' | 'filters' | 'map-settings' | 'dataset-info' | null;
@@ -24,6 +31,9 @@ interface GlanceTile {
   title: string;
   subtitle: string;
   value: string;
+  numericValue?: number;
+  total?: number;
+  unit?: string;
 }
 
 @Component({
@@ -38,6 +48,7 @@ interface GlanceTile {
     ButtonModule,
     ScrollPanelModule,
     TagModule,
+    TooltipModule,
     IndiaStateMapComponent
   ],
   templateUrl: './explorer.component.html',
@@ -301,14 +312,23 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   glanceTiles(): GlanceTile[] {
     const tiles: GlanceTile[] = [];
     const seen = new Set<string>();
+    const stateTotal = this.stateMetricsTotal();
+    const unit = this.stateMetrics[0]?.unit ?? '';
 
-    const add = (title: string, subtitle: string, value: string): void => {
+    const add = (
+      title: string,
+      subtitle: string,
+      value: string,
+      numericValue?: number,
+      total?: number,
+      tileUnit?: string
+    ): void => {
       const key = title.toLowerCase();
       if (seen.has(key)) {
         return;
       }
       seen.add(key);
-      tiles.push({ title, subtitle, value });
+      tiles.push({ title, subtitle, value, numericValue, total, unit: tileUnit });
     };
 
     if (this.isLiveDataset()) {
@@ -316,7 +336,10 @@ export class ExplorerComponent implements OnInit, OnDestroy {
         add(
           'Portal total',
           'Records published on data.gov.in',
-          this.liveTotalRecords.toLocaleString()
+          this.liveTotalRecords.toLocaleString(),
+          this.liveTotalRecords,
+          this.liveTotalRecords,
+          'records'
         );
       }
       if (this.recordsCached || this.isSyncInProgress()) {
@@ -325,33 +348,47 @@ export class ExplorerComponent implements OnInit, OnDestroy {
           : this.cachedAt
             ? `Last synced ${new Date(this.cachedAt).toLocaleDateString()}`
             : 'Stored locally for fast access';
-        add('Cached locally', cacheSubtitle, this.recordsCached.toLocaleString());
+        add(
+          'Cached locally',
+          cacheSubtitle,
+          this.recordsCached.toLocaleString(),
+          this.recordsCached,
+          this.liveTotalRecords || undefined,
+          'records'
+        );
       }
     }
 
     if (this.stateMetrics.length) {
-      const unit = this.stateMetrics[0]?.unit ?? 'units';
       add(
         'States / UTs',
         'Geographies represented in this dataset',
-        String(this.stateMetrics.length)
+        String(this.stateMetrics.length),
+        this.stateMetrics.length,
+        undefined,
+        'regions'
       );
 
       const top = this.topStates(1)[0];
       if (top) {
         add(
           'Top state',
-          `${top.state} leads by ${unit}`,
-          top.value.toLocaleString(undefined, { maximumFractionDigits: 0 })
+          `${top.state} leads by ${unit || 'value'}`,
+          top.value.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+          top.value,
+          stateTotal || undefined,
+          unit
         );
       }
 
-      if (!this.isLiveDataset()) {
-        const total = this.stateMetrics.reduce((sum, m) => sum + m.value, 0);
+      if (!this.isLiveDataset() && stateTotal > 0) {
         add(
           'National total',
-          `Sum across all states (${unit})`,
-          total.toLocaleString(undefined, { maximumFractionDigits: 0 })
+          `Sum across all states${unit ? ` (${unit})` : ''}`,
+          stateTotal.toLocaleString(undefined, { maximumFractionDigits: 0 }),
+          stateTotal,
+          stateTotal,
+          unit
         );
       }
     }
@@ -361,7 +398,15 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       if (skipLabels.some(s => item.label.toLowerCase().includes(s))) {
         continue;
       }
-      add(item.label, 'Dataset summary', item.value);
+      const numeric = Number.parseInt(item.value.replace(/,/g, ''), 10);
+      add(
+        item.label,
+        'Dataset summary',
+        item.value,
+        Number.isFinite(numeric) ? numeric : undefined,
+        Number.isFinite(numeric) ? (this.liveTotalRecords || stateTotal || undefined) : undefined,
+        unit
+      );
     }
 
     if (!tiles.length && this.selectedDataset) {
@@ -371,8 +416,116 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     return tiles;
   }
 
-  maxStatusCount(): number {
-    const counts = this.statusBreakdown().map(s => s.count);
-    return counts.length ? Math.max(...counts) : 1;
+  stateMetricsTotal(): number {
+    return sumValues(this.stateMetrics.map(m => m.value));
+  }
+
+  statusTotal(): number {
+    return sumValues(this.statusBreakdown().map(s => s.count));
+  }
+
+  mapTotalForPercent(): number {
+    if (this.isLiveDataset() && this.recordsCached > 0) {
+      return this.recordsCached;
+    }
+    if (this.isLiveDataset() && this.liveTotalRecords > 0) {
+      return this.liveTotalRecords;
+    }
+    return this.stateMetricsTotal();
+  }
+
+  dimensionGroupTotal(groupId: string): number {
+    const group = this.dimensionGroup(groupId);
+    if (!group) {
+      return 0;
+    }
+    return sumValues(group.items.map(item => Number.parseInt(item.valueType, 10) || 0));
+  }
+
+  datasetTitleLabel(): string {
+    return this.selectedDataset?.title ?? 'Dataset';
+  }
+
+  datasetCategoryLabel(): string {
+    return this.selectedDataset?.category ?? '';
+  }
+
+  tileTooltip(tile: GlanceTile): string {
+    return buildMetricTooltipHtml({
+      title: tile.title,
+      value: tile.numericValue ?? tile.value,
+      total: tile.total,
+      unit: tile.unit,
+      subtitle: tile.subtitle,
+      datasetTitle: this.datasetTitleLabel(),
+      category: this.datasetCategoryLabel()
+    });
+  }
+
+  stateMetricTooltip(row: StateMetric): string {
+    return buildMetricTooltipHtml({
+      title: row.state,
+      value: row.value,
+      total: this.mapTotalForPercent(),
+      unit: row.unit,
+      subtitle: row.stateCode ? `State code: ${row.stateCode}` : undefined,
+      datasetTitle: this.datasetTitleLabel(),
+      category: this.datasetCategoryLabel(),
+      rows: row.year ? [{ label: 'Period', value: row.year }] : []
+    });
+  }
+
+  statusRowTooltip(row: { label: string; count: number }): string {
+    return buildMetricTooltipHtml({
+      title: row.label,
+      value: row.count,
+      total: this.statusTotal(),
+      unit: this.stateMetrics[0]?.unit ?? 'records',
+      subtitle: 'Breakdown by company status',
+      datasetTitle: this.datasetTitleLabel(),
+      category: this.datasetCategoryLabel()
+    });
+  }
+
+  dimensionItemTooltip(item: DimensionItem, groupId: string): string {
+    const count = Number.parseInt(item.valueType, 10);
+    const total = this.dimensionGroupTotal(groupId);
+    if (Number.isFinite(count) && count > 0 && total > 0) {
+      return buildMetricTooltipHtml({
+        title: item.label,
+        value: count,
+        total,
+        unit: this.stateMetrics[0]?.unit ?? 'records',
+        subtitle: item.description,
+        datasetTitle: this.datasetTitleLabel(),
+        category: this.datasetCategoryLabel()
+      });
+    }
+    return buildMetricTooltipHtml({
+      title: item.label,
+      value: item.description,
+      subtitle: item.valueType,
+      datasetTitle: this.datasetTitleLabel(),
+      category: this.datasetCategoryLabel()
+    });
+  }
+
+  statusPercent(count: number): string {
+    return formatMetricPercent(count, this.statusTotal()) ?? '0%';
+  }
+
+  recordTooltip(row: Record<string, string>): string {
+    return buildMetricTooltipHtml({
+      title: row['companyName'] || 'Company record',
+      value: row['companyStatus'] || '—',
+      subtitle: row['companyIndustrialClassification'] || undefined,
+      datasetTitle: this.datasetTitleLabel(),
+      category: this.datasetCategoryLabel(),
+      rows: [
+        { label: 'State', value: row['companyStateCode'] || '—' },
+        { label: 'CIN', value: row['cin'] || '—' },
+        { label: 'Registered', value: row['registrationDate'] || '—' }
+      ]
+    });
   }
 }
