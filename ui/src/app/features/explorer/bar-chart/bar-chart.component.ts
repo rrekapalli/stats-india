@@ -25,7 +25,10 @@ export interface BarChartItem {
   selector: 'app-bar-chart',
   standalone: true,
   template: `
-    <div class="bar-chart-host" [class.bar-chart-host-horizontal]="orientation === 'horizontal'">
+    <div class="bar-chart-host"
+         #host
+         [class.bar-chart-host-horizontal]="orientation === 'horizontal'"
+         [class.bar-chart-host-vertical]="orientation === 'vertical'">
       <div class="bar-chart-viewport" #viewport>
         <svg #svg></svg>
       </div>
@@ -53,6 +56,7 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
 
   @Output() barClick = new EventEmitter<BarChartItem>();
 
+  @ViewChild('host', { static: true }) hostRef!: ElementRef<HTMLDivElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
   @ViewChild('svg', { static: true }) svgRef!: ElementRef<SVGSVGElement>;
 
@@ -62,38 +66,68 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
   tooltipY = 0;
 
   private resizeObserver: ResizeObserver | null = null;
+  private pendingRenderFrame: number | null = null;
 
   ngAfterViewInit(): void {
-    this.resizeObserver = new ResizeObserver(() => this.render());
-    this.resizeObserver.observe(this.viewportRef.nativeElement);
-    this.render();
+    this.resizeObserver = new ResizeObserver(() => this.scheduleRender());
+    this.resizeObserver.observe(this.hostRef.nativeElement);
+    this.scheduleRender();
   }
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (this.viewportRef && (changes['items'] || changes['selectedIds'] || changes['dimmedIds'])) {
-      this.render();
+    if (this.hostRef && (changes['items'] || changes['selectedIds'] || changes['dimmedIds'] || changes['orientation'])) {
+      this.scheduleRender();
     }
   }
 
   ngOnDestroy(): void {
     this.resizeObserver?.disconnect();
+    if (this.pendingRenderFrame !== null) {
+      cancelAnimationFrame(this.pendingRenderFrame);
+    }
+  }
+
+  private scheduleRender(): void {
+    if (this.pendingRenderFrame !== null) {
+      cancelAnimationFrame(this.pendingRenderFrame);
+    }
+    this.pendingRenderFrame = requestAnimationFrame(() => {
+      this.pendingRenderFrame = null;
+      this.render();
+    });
+  }
+
+  private measureHostSize(): { width: number; height: number } {
+    const host = this.hostRef.nativeElement;
+    const rect = host.getBoundingClientRect();
+    return {
+      width: Math.max(Math.floor(rect.width), 120),
+      height: Math.max(Math.floor(rect.height), 80)
+    };
   }
 
   private render(): void {
     const viewport = this.viewportRef?.nativeElement;
     const svgEl = this.svgRef?.nativeElement;
-    if (!viewport || !svgEl) {
+    const host = this.hostRef?.nativeElement;
+    if (!viewport || !svgEl || !host) {
       return;
     }
 
-    const width = Math.max(viewport.clientWidth, 120);
     const isHorizontal = this.orientation === 'horizontal';
+    const hostSize = this.measureHostSize();
+    const width = hostSize.width;
+
+    if (!isHorizontal && hostSize.height < 40) {
+      this.scheduleRender();
+      return;
+    }
+
     const rowHeight = 22;
     const chartHeight = isHorizontal
-      ? Math.max(viewport.clientHeight, this.items.length * rowHeight + 48)
-      : Math.max(viewport.clientHeight, 160);
-    // At least ~30px for rotated x-axis labels; also honor ~5% on taller widgets.
-    const verticalBottomMargin = Math.max(30, Math.round(chartHeight * 0.05));
+      ? Math.max(hostSize.height, this.items.length * rowHeight + 48)
+      : hostSize.height;
+    const verticalBottomMargin = Math.max(36, Math.round(chartHeight * 0.08));
     const margin = isHorizontal
       ? { top: 8, right: 40, bottom: 12, left: 118 }
       : { top: 8, right: 8, bottom: verticalBottomMargin, left: 36 };
@@ -204,14 +238,20 @@ export class BarChartComponent implements AfterViewInit, OnChanges, OnDestroy {
         .call(axisBottom(x).tickSizeOuter(0).tickPadding(4).tickFormat(id => {
           const label = this.items.find(d => d.id === id)?.label ?? id;
           return label.length > 12 ? `${label.slice(0, 11)}…` : label;
-        }))
+        }));
+
+      g.select('.axis-x')
         .selectAll('text')
-        .attr('transform', 'rotate(-35)')
         .attr('text-anchor', 'end')
         .attr('dx', '-0.3em')
         .attr('dy', '0.35em')
         .attr('font-size', '9px')
-        .attr('fill', '#475569');
+        .attr('fill', '#475569')
+        .attr('transform', (_d, i, nodes) => {
+          const el = nodes[i] as SVGTextElement;
+          const xPos = el.getAttribute('x') ?? '0';
+          return `translate(${xPos}, 0) rotate(-35)`;
+        });
 
       const bars = g
         .selectAll<SVGRectElement, BarChartItem>('rect.bar')

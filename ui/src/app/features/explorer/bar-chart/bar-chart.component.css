@@ -12,23 +12,26 @@
   flex-direction: column;
 }
 
-.bar-chart-host-horizontal .bar-chart-viewport {
-  overflow: auto;
-}
-
-.bar-chart-viewport {
+.bar-chart-host-vertical .bar-chart-viewport {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
 }
 
 .bar-chart-host-horizontal .bar-chart-viewport {
+  flex: 1 1 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
 }
 
 .bar-chart-viewport svg {
   display: block;
+}
+
+.bar-chart-host-vertical .bar-chart-viewport svg {
+  width: 100%;
+  height: 100%;
 }
 
 .map-html-tooltip {
