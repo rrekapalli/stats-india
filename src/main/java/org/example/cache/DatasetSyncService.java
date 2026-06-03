@@ -2,6 +2,7 @@ package org.example.cache;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.example.client.DataGovInClient;
+import org.example.service.datagov.DatasetDimensionSpec;
 import org.example.service.datagov.McaCompanyMasterDatasetService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,6 +11,7 @@ import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -155,6 +157,8 @@ public class DatasetSyncService {
                 log.info("Starting fresh MCA sync (portal total {})", portalTotal);
             }
 
+            persistDimensions(resourceId, McaCompanyMasterDatasetService.getDimensionSpecs());
+
             ingestFromOffset(resourceId, offset, portalTotal, pageSize);
 
             long finalCached = cacheRepository.countRecords(resourceId);
@@ -204,6 +208,25 @@ public class DatasetSyncService {
         List<Map<String, String>> records = mcaCompanyMasterDatasetService.parseRecords(payload);
         cacheRepository.insertRecords(resourceId, startIndex, records);
         cacheRepository.mergeAggregates(resourceId, mcaCompanyMasterDatasetService.aggregateBatch(records));
+    }
+
+    private void persistDimensions(String resourceId, List<DatasetDimensionSpec> specs) {
+        List<DatasetDimensionRow> rows = new ArrayList<>(specs.size());
+        for (int i = 0; i < specs.size(); i++) {
+            DatasetDimensionSpec spec = specs.get(i);
+            rows.add(new DatasetDimensionRow(
+                    spec.id(),
+                    spec.label(),
+                    spec.role().name(),
+                    spec.sourceField(),
+                    spec.resolvedAggregateKey(),
+                    spec.countUnit(),
+                    spec.displayLimit(),
+                    i,
+                    spec.sourceField() != null
+            ));
+        }
+        cacheRepository.replaceDimensions(resourceId, rows);
     }
 
     private void sleepBetweenRequests() {

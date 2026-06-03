@@ -23,11 +23,9 @@ import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component
 import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
 import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
 import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
-import { dimensionLabelForFilterColumn } from './explorer-mca-filter.util';
 import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
-  formatMetricPercent,
   sumValues
 } from '../../shared/stats-metric-tooltip.util';
 import {
@@ -36,7 +34,8 @@ import {
   DimensionBreakdownOptions,
   dimensionToBarItems,
   dimensionToPieItems,
-  resolveDimensionChartSlots
+  resolveVisualizationSlots,
+  VisualizationSlot
 } from './dimension-chart-layout';
 
 type LeftDrawer = 'datasets' | 'categories' | null;
@@ -141,33 +140,7 @@ export class ExplorerComponent implements OnInit {
     this.crossFilter.clear();
     this.cdr.markForCheck();
 
-    if (dataset.id === MCA_COMPANY_MASTER_RESOURCE_ID) {
-      this.loadExploreSummary(dataset.id);
-      return;
-    }
-
-    this.api.getDimensions(dataset.id).subscribe({
-      next: dimensions => {
-        this.dimensions = dimensions;
-        this.unfilteredDimensions = dimensions;
-        this.updateAccordionPanels(dimensions);
-        this.cdr.markForCheck();
-      }
-    });
-
-    this.api.getStateMetrics(dataset.id).subscribe({
-      next: metrics => {
-        this.stateMetrics = metrics;
-        this.datasetRecords = [];
-        this.loading = false;
-        this.cdr.markForCheck();
-      },
-      error: () => {
-        this.error = 'Unable to load state metrics.';
-        this.loading = false;
-        this.cdr.markForCheck();
-      }
-    });
+    this.loadExploreSummary(dataset.id);
   }
 
   /** Load visualization metrics from the local SQLite cache (read-only). */
@@ -279,17 +252,22 @@ export class ExplorerComponent implements OnInit {
   }
 
   addCrossFilter(filterColumn: string, value: string, dimensionLabel?: string): void {
-    const label =
-      dimensionLabel ??
-      dimensionLabelForFilterColumn(filterColumn, this.unfilteredDimensions.length
-        ? this.unfilteredDimensions
-        : this.dimensions);
+    const label = dimensionLabel ?? this.resolveDimensionLabel(filterColumn);
     const added = this.crossFilter.add({ filterColumn, dimensionLabel: label, value });
     if (!added) {
       return;
     }
     this.cdr.markForCheck();
     this.applyCrossFiltersFromServer();
+  }
+
+  private resolveDimensionLabel(filterColumn: string): string {
+    const source = this.unfilteredDimensions.length ? this.unfilteredDimensions : this.dimensions;
+    const match = source.find(g => g.id === filterColumn);
+    if (match) {
+      return match.label;
+    }
+    return filterColumn === 'state' ? 'State' : filterColumn;
   }
 
   removeCrossFilter(chip: ExplorerFilterChip): void {
@@ -347,31 +325,26 @@ export class ExplorerComponent implements OnInit {
     return this.dimensions.find(g => g.id === id);
   }
 
-  pieDimensionGroup(): DimensionGroup | null {
-    return resolveDimensionChartSlots(this.dimensions).pie;
+  visualizationSlots(): VisualizationSlot[] {
+    return resolveVisualizationSlots(this.dimensions);
   }
 
-  barDimensionGroup(): DimensionGroup | null {
-    return resolveDimensionChartSlots(this.dimensions).bar;
+  slotGroup(slot: VisualizationSlot): DimensionGroup | undefined {
+    return this.dimensionGroup(slot.dimensionId);
   }
 
-  pieChartItems(): PieChartItem[] {
-    const group = this.pieDimensionGroup();
+  slotPieItems(slot: VisualizationSlot): PieChartItem[] {
+    const group = this.slotGroup(slot);
     return group ? dimensionToPieItems(group, this.chartBreakdownOptions()) : [];
   }
 
-  barChartItems(): BarChartItem[] {
-    const group = this.barDimensionGroup();
+  slotBarItems(slot: VisualizationSlot): BarChartItem[] {
+    const group = this.slotGroup(slot);
     return group ? dimensionToBarItems(group, this.chartBreakdownOptions()) : [];
   }
 
-  pieChartTotal(): number {
-    const group = this.pieDimensionGroup();
-    return group ? dimensionGroupTotal(group, this.chartBreakdownOptions()) : 0;
-  }
-
-  barChartTotal(): number {
-    const group = this.barDimensionGroup();
+  slotTotal(slot: VisualizationSlot): number {
+    const group = this.slotGroup(slot);
     return group ? dimensionGroupTotal(group, this.chartBreakdownOptions()) : 0;
   }
 
@@ -387,17 +360,8 @@ export class ExplorerComponent implements OnInit {
     return [];
   }
 
-  onDimensionBarClick(dimensionId: string, item: BarChartItem): void {
-    const group = this.barDimensionGroup();
-    this.addCrossFilter(dimensionId, item.label, group?.label);
-  }
-
-  onPieSliceClick(item: PieChartItem): void {
-    const group = this.pieDimensionGroup();
-    if (!group) {
-      return;
-    }
-    this.addCrossFilter(group.id, item.label, group.label);
+  onSlotItemClick(slot: VisualizationSlot, item: BarChartItem | PieChartItem): void {
+    this.addCrossFilter(slot.dimensionId, item.label, slot.label);
   }
 
   allStateBarItems(): BarChartItem[] {
@@ -573,10 +537,6 @@ export class ExplorerComponent implements OnInit {
     return sumValues(this.stateMetrics.map(m => m.value));
   }
 
-  statusTotal(): number {
-    return this.barChartTotal();
-  }
-
   mapTotalForPercent(): number {
     if (this.crossFilter.active && this.isLiveDataset()) {
       return this.stateMetricsTotal();
@@ -601,6 +561,14 @@ export class ExplorerComponent implements OnInit {
 
   datasetCategoryLabel(): string {
     return this.selectedDataset?.category ?? '';
+  }
+
+  mapWidgetTitle(): string {
+    const stateGroup = this.dimensionGroup('state');
+    if (stateGroup) {
+      return `By ${stateGroup.label.toLowerCase()}`;
+    }
+    return this.selectedDataset?.title ?? 'India map';
   }
 
   tileTooltip(tile: GlanceTile): string {
@@ -628,19 +596,6 @@ export class ExplorerComponent implements OnInit {
     });
   }
 
-  statusRowTooltip(row: { label: string; count: number }): string {
-    const barGroup = this.barDimensionGroup();
-    return buildMetricTooltipHtml({
-      title: row.label,
-      value: row.count,
-      total: this.barChartTotal(),
-      unit: this.stateMetrics[0]?.unit ?? 'records',
-      subtitle: barGroup ? `Breakdown by ${barGroup.label.toLowerCase()}` : undefined,
-      datasetTitle: this.datasetTitleLabel(),
-      category: this.datasetCategoryLabel()
-    });
-  }
-
   dimensionItemTooltip(item: DimensionItem, groupId: string): string {
     const count = Number.parseInt(item.valueType, 10);
     const total = this.dimensionGroupTotalById(groupId);
@@ -662,10 +617,6 @@ export class ExplorerComponent implements OnInit {
       datasetTitle: this.datasetTitleLabel(),
       category: this.datasetCategoryLabel()
     });
-  }
-
-  statusPercent(count: number): string {
-    return formatMetricPercent(count, this.statusTotal()) ?? '0%';
   }
 
   recordTooltip(row: Record<string, string>): string {

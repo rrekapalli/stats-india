@@ -119,7 +119,7 @@
                 <article class="dashboard-widget widget-map">
                   <app-india-state-map
                     [metrics]="stateMetrics"
-                    [title]="isLiveDataset() ? 'Companies by state' : (selectedDataset?.title ?? 'India map')"
+                    [title]="mapWidgetTitle()"
                     [unit]="stateMetrics[0]?.unit ?? ''"
                     [totalForPercent]="mapTotalForPercent()"
                     [datasetTitle]="datasetTitleLabel()"
@@ -130,49 +130,52 @@
                     (stateClick)="onMapStateClick($event)" />
                 </article>
 
-                @if (pieDimensionGroup(); as pieGroup) {
-                  <article class="dashboard-widget widget-category">
-                    <header class="widget-header">{{ pieGroup.label }}</header>
-                    <div class="widget-body widget-chart-body">
-                      @if (pieChartItems().length) {
-                        <app-pie-chart
-                          [items]="pieChartItems()"
-                          [unit]="stateMetrics[0]?.unit ?? 'records'"
-                          [total]="pieChartTotal()"
-                          [summaryTitle]="'All ' + pieGroup.label.toLowerCase()"
-                          [datasetTitle]="datasetTitleLabel()"
-                          [datasetCategory]="datasetCategoryLabel()"
-                          (sliceClick)="onPieSliceClick($event)" />
-                      } @else {
-                        <p class="muted widget-empty">No breakdown available for {{ pieGroup.label.toLowerCase() }}.</p>
-                      }
-                    </div>
-                  </article>
-                }
-
-                @if (barDimensionGroup(); as barGroup) {
-                  <article class="dashboard-widget widget-status">
-                    <header class="widget-header">{{ barGroup.label }}</header>
-                    <div class="widget-body widget-chart-body">
-                      @if (barChartItems().length) {
-                        <app-bar-chart
-                          orientation="vertical"
-                          [staticInfoPanel]="true"
-                          infoPanelAnchor="top-right"
-                          [summaryTitle]="'All ' + barGroup.label.toLowerCase()"
-                          [items]="barChartItems()"
-                          [selectedIds]="dimensionBarSelectedIds(barGroup.id)"
-                          [dimmedIds]="dimensionBarDimmedIds(barGroup.id)"
-                          [unit]="stateMetrics[0]?.unit ?? 'records'"
-                          [total]="barChartTotal()"
-                          [datasetTitle]="datasetTitleLabel()"
-                          [datasetCategory]="datasetCategoryLabel()"
-                          (barClick)="onDimensionBarClick(barGroup.id, $event)" />
-                      } @else {
-                        <p class="muted widget-empty">No breakdown available for {{ barGroup.label.toLowerCase() }}.</p>
-                      }
-                    </div>
-                  </article>
+                @for (slot of visualizationSlots(); track slot.dimensionId) {
+                  @switch (slot.chartType) {
+                    @case ('pie') {
+                      <article class="dashboard-widget widget-category">
+                        <header class="widget-header">{{ slot.label }}</header>
+                        <div class="widget-body widget-chart-body">
+                          @if (slotPieItems(slot).length) {
+                            <app-pie-chart
+                              [items]="slotPieItems(slot)"
+                              [unit]="stateMetrics[0]?.unit ?? 'records'"
+                              [total]="slotTotal(slot)"
+                              [summaryTitle]="'All ' + slot.label.toLowerCase()"
+                              [datasetTitle]="datasetTitleLabel()"
+                              [datasetCategory]="datasetCategoryLabel()"
+                              (sliceClick)="onSlotItemClick(slot, $event)" />
+                          } @else {
+                            <p class="muted widget-empty">No breakdown available for {{ slot.label.toLowerCase() }}.</p>
+                          }
+                        </div>
+                      </article>
+                    }
+                    @case ('bar-vertical') {
+                      <article class="dashboard-widget widget-status">
+                        <header class="widget-header">{{ slot.label }}</header>
+                        <div class="widget-body widget-chart-body">
+                          @if (slotBarItems(slot).length) {
+                            <app-bar-chart
+                              orientation="vertical"
+                              [staticInfoPanel]="true"
+                              infoPanelAnchor="top-right"
+                              [summaryTitle]="'All ' + slot.label.toLowerCase()"
+                              [items]="slotBarItems(slot)"
+                              [selectedIds]="dimensionBarSelectedIds(slot.dimensionId)"
+                              [dimmedIds]="dimensionBarDimmedIds(slot.dimensionId)"
+                              [unit]="stateMetrics[0]?.unit ?? 'records'"
+                              [total]="slotTotal(slot)"
+                              [datasetTitle]="datasetTitleLabel()"
+                              [datasetCategory]="datasetCategoryLabel()"
+                              (barClick)="onSlotItemClick(slot, $event)" />
+                          } @else {
+                            <p class="muted widget-empty">No breakdown available for {{ slot.label.toLowerCase() }}.</p>
+                          }
+                        </div>
+                      </article>
+                    }
+                  }
                 }
 
                 <article class="dashboard-widget widget-states">

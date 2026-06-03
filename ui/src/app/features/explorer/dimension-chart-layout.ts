@@ -1,8 +1,11 @@
-import { DimensionGroup, DimensionItem } from '../../models/dataset.models';
+import { DimensionGroup, DimensionItem, DimensionRole } from '../../models/dataset.models';
 import { BarChartItem } from './bar-chart/bar-chart.component';
 import { PieChartItem } from './pie-chart/pie-chart.component';
 
-/** Dimensions handled by map / state bar / KPI tiles — not the side pie or bottom bar slots. */
+/**
+ * Legacy fallback used when {@link DimensionGroup.role} is not set by the server.
+ * New code paths should rely on {@link DimensionRole}.
+ */
 export const RESERVED_DIMENSION_IDS = new Set([
   'summary',
   'state',
@@ -14,6 +17,15 @@ export const RESERVED_DIMENSION_IDS = new Set([
 
 export const PIE_CHART_MAX_VALUES = 5;
 
+export type SlotChartType = 'pie' | 'bar-vertical';
+
+export interface VisualizationSlot {
+  dimensionId: string;
+  label: string;
+  chartType: SlotChartType;
+  cardinality: number;
+}
+
 export interface DimensionChartSlots {
   pie: DimensionGroup | null;
   bar: DimensionGroup | null;
@@ -24,6 +36,13 @@ export interface DimensionBreakdownOptions {
   valueTotalHint?: number;
 }
 
+const RESERVED_ROLES: ReadonlySet<DimensionRole> = new Set<DimensionRole>([
+  'SUMMARY',
+  'GEOGRAPHY',
+  'TEMPORAL',
+  'MEASURE'
+]);
+
 export function dimensionItemCount(item: DimensionItem): number {
   const parsed = Number.parseInt(item.valueType, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
@@ -33,11 +52,34 @@ function labeledItems(group: DimensionGroup): DimensionItem[] {
   return group.items.filter(item => item.label?.trim());
 }
 
+/** True if the dimension is handled by map / state bar / KPI tiles (not pie/bar slots). */
+function isReservedForFixedSlots(group: DimensionGroup): boolean {
+  if (group.role) {
+    return RESERVED_ROLES.has(group.role);
+  }
+  return RESERVED_DIMENSION_IDS.has(group.id);
+}
+
+/** Distinct value count: prefer server-supplied cardinality, then numeric items, then labels. */
+export function distinctValueCount(group: DimensionGroup): number {
+  if (typeof group.cardinality === 'number' && group.cardinality >= 0) {
+    return group.cardinality;
+  }
+  const numeric = group.items.filter(item => dimensionItemCount(item) > 0);
+  if (numeric.length > 0) {
+    return numeric.length;
+  }
+  return labeledItems(group).length;
+}
+
 /** Dimension groups suitable for pie or bar chart slots. */
 export function chartableDimensionGroups(dimensions: DimensionGroup[]): DimensionGroup[] {
   return dimensions.filter(group => {
-    if (RESERVED_DIMENSION_IDS.has(group.id)) {
+    if (isReservedForFixedSlots(group)) {
       return false;
+    }
+    if (group.role === 'CATEGORICAL') {
+      return distinctValueCount(group) >= 2;
     }
     const numericCount = group.items.filter(item => dimensionItemCount(item) > 0).length;
     if (numericCount >= 2) {
@@ -47,34 +89,57 @@ export function chartableDimensionGroups(dimensions: DimensionGroup[]): Dimensio
   });
 }
 
-export function distinctValueCount(group: DimensionGroup): number {
-  const numeric = group.items.filter(item => dimensionItemCount(item) > 0);
-  if (numeric.length > 0) {
-    return numeric.length;
+/**
+ * Pick concrete chart slots from a dataset's dimensions. First categorical group with
+ * cardinality &le; {@link PIE_CHART_MAX_VALUES} fills the pie slot; the next group with a
+ * higher cardinality fills the vertical bar slot. Geography/temporal/summary/measure are
+ * always reserved for the map, KPI tiles, and horizontal states bar.
+ */
+export function resolveVisualizationSlots(dimensions: DimensionGroup[]): VisualizationSlot[] {
+  const chartable = [...chartableDimensionGroups(dimensions)].sort((a, b) => {
+    const ca = distinctValueCount(a);
+    const cb = distinctValueCount(b);
+    if (ca !== cb) {
+      return ca - cb;
+    }
+    return a.label.localeCompare(b.label);
+  });
+
+  const slots: VisualizationSlot[] = [];
+  let pieTaken = false;
+  let barTaken = false;
+
+  for (const group of chartable) {
+    const cardinality = distinctValueCount(group);
+    if (!pieTaken && cardinality >= 2 && cardinality <= PIE_CHART_MAX_VALUES) {
+      slots.push({ dimensionId: group.id, label: group.label, chartType: 'pie', cardinality });
+      pieTaken = true;
+      continue;
+    }
+    if (!barTaken && cardinality > PIE_CHART_MAX_VALUES) {
+      slots.push({
+        dimensionId: group.id,
+        label: group.label,
+        chartType: 'bar-vertical',
+        cardinality
+      });
+      barTaken = true;
+    }
   }
-  return labeledItems(group).length;
+
+  return slots;
 }
 
+/** @deprecated Use {@link resolveVisualizationSlots} instead. Kept for callers in transition. */
 export function resolveDimensionChartSlots(dimensions: DimensionGroup[]): DimensionChartSlots {
-  const chartable = chartableDimensionGroups(dimensions);
-  let pie: DimensionGroup | null = null;
-  let bar: DimensionGroup | null = null;
-
-  for (const group of chartable) {
-    const count = distinctValueCount(group);
-    if (!pie && count > 0 && count <= PIE_CHART_MAX_VALUES) {
-      pie = group;
-    }
-  }
-
-  for (const group of chartable) {
-    const count = distinctValueCount(group);
-    if (!bar && count > PIE_CHART_MAX_VALUES) {
-      bar = group;
-    }
-  }
-
-  return { pie, bar };
+  const slots = resolveVisualizationSlots(dimensions);
+  const groupsById = new Map(dimensions.map(d => [d.id, d] as const));
+  const pieSlot = slots.find(s => s.chartType === 'pie');
+  const barSlot = slots.find(s => s.chartType === 'bar-vertical');
+  return {
+    pie: pieSlot ? groupsById.get(pieSlot.dimensionId) ?? null : null,
+    bar: barSlot ? groupsById.get(barSlot.dimensionId) ?? null : null
+  };
 }
 
 function distributeTotalAcrossLabels(labels: string[], total: number): Map<string, number> {

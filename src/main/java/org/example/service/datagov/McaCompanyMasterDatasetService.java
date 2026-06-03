@@ -5,8 +5,10 @@ import org.example.cache.DatasetCacheMeta;
 import org.example.cache.DatasetCacheRepository;
 import org.example.cache.DatasetFetchStatus;
 import org.example.dto.DatasetDataResponse;
+import org.example.dto.DatasetFilter;
 import org.example.dto.DimensionGroup;
 import org.example.dto.DimensionItem;
+import org.example.dto.DimensionRole;
 import org.example.dto.StateMetric;
 import org.springframework.stereotype.Service;
 
@@ -18,11 +20,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 /**
  * MCA RoC-wise Company Master Data — portal fetch parsing, aggregation, and cache-backed reads.
  * Resource: {@value #RESOURCE_ID}
+ *
+ * <p>Dimensions are declared in {@link #DIMENSIONS}; aggregation, filtering, and group building
+ * delegate to {@link GenericAggregateEngine} so adding a new live dataset is a config exercise.
  */
 @Service
 public class McaCompanyMasterDatasetService {
@@ -76,6 +80,57 @@ public class McaCompanyMasterDatasetService {
             Map.entry("west bengal", "West Bengal")
     );
 
+    /**
+     * Declarative dimensions. {@code aggregateKey}s match the existing SQLite cache schema so
+     * deployed caches keep reading after this refactor without a re-sync.
+     */
+    public static List<DatasetDimensionSpec> getDimensionSpecs() {
+        return DIMENSIONS;
+    }
+
+    static final List<DatasetDimensionSpec> DIMENSIONS = List.of(
+            new DatasetDimensionSpec(
+                    "state",
+                    "State / UT",
+                    DimensionRole.GEOGRAPHY,
+                    "companyStateCode",
+                    "state",
+                    McaCompanyMasterDatasetService::normalizeState,
+                    "companies",
+                    0
+            ),
+            new DatasetDimensionSpec(
+                    "company-status",
+                    "Company status",
+                    DimensionRole.CATEGORICAL,
+                    "companyStatus",
+                    "status",
+                    McaCompanyMasterDatasetService::normalizeLabel,
+                    "companies",
+                    0
+            ),
+            new DatasetDimensionSpec(
+                    "industry",
+                    "Industrial classification",
+                    DimensionRole.CATEGORICAL,
+                    "companyIndustrialClassification",
+                    "industry",
+                    McaCompanyMasterDatasetService::normalizeLabel,
+                    "companies",
+                    12
+            ),
+            new DatasetDimensionSpec(
+                    "category",
+                    "Company category",
+                    DimensionRole.CATEGORICAL,
+                    "companyCategory",
+                    "category",
+                    McaCompanyMasterDatasetService::normalizeLabel,
+                    "companies",
+                    0
+            )
+    );
+
     private final DatasetCacheRepository cacheRepository;
 
     public McaCompanyMasterDatasetService(DatasetCacheRepository cacheRepository) {
@@ -92,7 +147,7 @@ public class McaCompanyMasterDatasetService {
         return buildResponse(meta, aggregates, List.of(), 0, 0, null, false);
     }
 
-    public DatasetDataResponse getExploreFiltered(List<org.example.dto.DatasetFilter> filters) {
+    public DatasetDataResponse getExploreFiltered(List<DatasetFilter> filters) {
         Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
         if (metaOpt.isEmpty()) {
             return emptyResponse(DatasetFetchStatus.MISSING.name(), null, 0);
@@ -127,7 +182,7 @@ public class McaCompanyMasterDatasetService {
             int offset,
             int limit,
             boolean includeRecords,
-            List<org.example.dto.DatasetFilter> filters
+            List<DatasetFilter> filters
     ) {
         Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
         if (metaOpt.isEmpty()) {
@@ -151,71 +206,19 @@ public class McaCompanyMasterDatasetService {
 
     private record FilteredAggregateResult(Map<String, Map<String, Integer>> aggregates, long matchCount) {}
 
-    private FilteredAggregateResult computeFilteredAggregates(List<org.example.dto.DatasetFilter> filters) {
-        Map<String, Integer> byState = new LinkedHashMap<>();
-        Map<String, Integer> byStatus = new LinkedHashMap<>();
-        Map<String, Integer> byIndustry = new LinkedHashMap<>();
-        Map<String, Integer> byCategory = new LinkedHashMap<>();
+    private FilteredAggregateResult computeFilteredAggregates(List<DatasetFilter> filters) {
+        Map<String, Map<String, Integer>> aggregates = new LinkedHashMap<>();
         long[] matchCount = {0L};
 
         cacheRepository.forEachRecord(RESOURCE_ID, row -> {
-            if (!matchesAllFilters(row, filters)) {
+            if (!GenericAggregateEngine.matchesAllFilters(row, filters, DIMENSIONS)) {
                 return;
             }
             matchCount[0]++;
-            mergeRowIntoAggregates(row, byState, byStatus, byIndustry, byCategory);
+            GenericAggregateEngine.mergeRow(row, DIMENSIONS, aggregates);
         });
 
-        Map<String, Map<String, Integer>> dimensions = new LinkedHashMap<>();
-        dimensions.put("state", byState);
-        dimensions.put("status", byStatus);
-        dimensions.put("industry", byIndustry);
-        dimensions.put("category", byCategory);
-        return new FilteredAggregateResult(dimensions, matchCount[0]);
-    }
-
-    private boolean matchesAllFilters(Map<String, String> row, List<org.example.dto.DatasetFilter> filters) {
-        for (org.example.dto.DatasetFilter filter : filters) {
-            if (!matchesFilter(row, filter)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private boolean matchesFilter(Map<String, String> row, org.example.dto.DatasetFilter filter) {
-        return switch (filter.dimension()) {
-            case "state" -> filter.value().equals(normalizeState(row.get("companyStateCode")));
-            case "company-status" -> filter.value().equals(normalizeLabel(row.get("companyStatus")));
-            case "industry" -> filter.value().equals(normalizeLabel(row.get("companyIndustrialClassification")));
-            case "category" -> filter.value().equals(normalizeLabel(row.get("companyCategory")));
-            default -> true;
-        };
-    }
-
-    private void mergeRowIntoAggregates(
-            Map<String, String> row,
-            Map<String, Integer> byState,
-            Map<String, Integer> byStatus,
-            Map<String, Integer> byIndustry,
-            Map<String, Integer> byCategory
-    ) {
-        String state = normalizeState(row.get("companyStateCode"));
-        if (state != null) {
-            byState.merge(state, 1, Integer::sum);
-        }
-        String status = normalizeLabel(row.get("companyStatus"));
-        if (status != null) {
-            byStatus.merge(status, 1, Integer::sum);
-        }
-        String industry = normalizeLabel(row.get("companyIndustrialClassification"));
-        if (industry != null) {
-            byIndustry.merge(industry, 1, Integer::sum);
-        }
-        String category = normalizeLabel(row.get("companyCategory"));
-        if (category != null) {
-            byCategory.merge(category, 1, Integer::sum);
-        }
+        return new FilteredAggregateResult(aggregates, matchCount[0]);
     }
 
     public List<Map<String, String>> parseRecords(JsonNode payload) {
@@ -230,31 +233,7 @@ public class McaCompanyMasterDatasetService {
     }
 
     public Map<String, Map<String, Integer>> aggregateBatch(List<Map<String, String>> records) {
-        Map<String, Integer> byState = new LinkedHashMap<>();
-        Map<String, Integer> byStatus = new LinkedHashMap<>();
-        Map<String, Integer> byIndustry = new LinkedHashMap<>();
-        Map<String, Integer> byCategory = new LinkedHashMap<>();
-
-        for (Map<String, String> row : records) {
-            mergeRowIntoAggregates(row, byState, byStatus, byIndustry, byCategory);
-        }
-
-        Map<String, Map<String, Integer>> dimensions = new LinkedHashMap<>();
-        dimensions.put("state", byState);
-        dimensions.put("status", byStatus);
-        dimensions.put("industry", byIndustry);
-        dimensions.put("category", byCategory);
-        return dimensions;
-    }
-
-    private DatasetDataResponse buildResponse(
-            DatasetCacheMeta meta,
-            Map<String, Map<String, Integer>> aggregates,
-            List<Map<String, String>> records,
-            int offset,
-            int limit
-    ) {
-        return buildResponse(meta, aggregates, records, offset, limit, null, false);
+        return GenericAggregateEngine.aggregate(records, DIMENSIONS);
     }
 
     private DatasetDataResponse buildResponse(
@@ -267,9 +246,6 @@ public class McaCompanyMasterDatasetService {
             boolean skipCountRecords
     ) {
         Map<String, Integer> byState = aggregates.getOrDefault("state", Map.of());
-        Map<String, Integer> byStatus = aggregates.getOrDefault("status", Map.of());
-        Map<String, Integer> byIndustry = aggregates.getOrDefault("industry", Map.of());
-        Map<String, Integer> byCategory = aggregates.getOrDefault("category", Map.of());
 
         List<StateMetric> stateMetrics = byState.entrySet().stream()
                 .sorted(Comparator.comparingInt(Map.Entry<String, Integer>::getValue).reversed())
@@ -282,13 +258,10 @@ public class McaCompanyMasterDatasetService {
         }
         long displayCount = filteredCount != null ? filteredCount : cachedTotal;
         boolean filtered = filteredCount != null;
-        List<DimensionGroup> dimensionGroups = List.of(
-                summaryGroup(meta.portalTotal(), displayCount, byState.size(), meta.fetchedAt(), filtered),
-                countGroup("company-status", "Company status", byStatus),
-                countGroup("industry", "Industrial classification", topEntries(byIndustry, 12)),
-                countGroup("category", "Company category", byCategory),
-                countGroup("state", "State / UT", byState)
-        );
+
+        List<DimensionGroup> dimensionGroups = new ArrayList<>();
+        dimensionGroups.add(summaryGroup(meta.portalTotal(), displayCount, byState.size(), meta.fetchedAt(), filtered));
+        dimensionGroups.addAll(GenericAggregateEngine.buildDimensionGroups(aggregates, DIMENSIONS));
 
         return new DatasetDataResponse(
                 RESOURCE_ID,
@@ -356,47 +329,18 @@ public class McaCompanyMasterDatasetService {
             boolean filtered
     ) {
         List<DimensionItem> items = new ArrayList<>();
-        items.add(item("total-records", "Total records (portal)", String.valueOf(portalTotal), "count"));
-        items.add(item(
+        items.add(new DimensionItem("total-records", "Total records (portal)", String.valueOf(portalTotal), "count"));
+        items.add(new DimensionItem(
                 "cached-records",
                 filtered ? "Records matching filters" : "Records cached locally",
                 String.valueOf(cachedRecords),
                 "count"
         ));
-        items.add(item("states", "States / UTs represented", String.valueOf(statesRepresented), "count"));
+        items.add(new DimensionItem("states", "States / UTs represented", String.valueOf(statesRepresented), "count"));
         if (cachedAt != null) {
-            items.add(item("cached-at", "Last synced", cachedAt.toString(), "timestamp"));
+            items.add(new DimensionItem("cached-at", "Last synced", cachedAt.toString(), "timestamp"));
         }
-        return new DimensionGroup("summary", "Dataset summary", items);
-    }
-
-    private DimensionGroup countGroup(String id, String label, Map<String, Integer> counts) {
-        List<DimensionItem> items = counts.entrySet().stream()
-                .sorted(Comparator.comparingInt(Map.Entry<String, Integer>::getValue).reversed())
-                .map(e -> item(
-                        slugify(e.getKey()),
-                        e.getKey(),
-                        e.getValue() + " companies",
-                        String.valueOf(e.getValue())
-                ))
-                .toList();
-        return new DimensionGroup(id, label, items);
-    }
-
-    private Map<String, Integer> topEntries(Map<String, Integer> source, int max) {
-        return source.entrySet().stream()
-                .sorted(Comparator.comparingInt(Map.Entry<String, Integer>::getValue).reversed())
-                .limit(max)
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (a, b) -> a,
-                        LinkedHashMap::new
-                ));
-    }
-
-    private DimensionItem item(String id, String label, String description, String valueType) {
-        return new DimensionItem(id, label, description, valueType);
+        return new DimensionGroup("summary", "Dataset summary", items, DimensionRole.SUMMARY, items.size(), null, false);
     }
 
     private Map<String, String> cleanRecord(JsonNode record) {
@@ -490,12 +434,6 @@ public class McaCompanyMasterDatasetService {
             case "West Bengal" -> "WB";
             default -> "";
         };
-    }
-
-    private static String slugify(String value) {
-        return value.toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-|-$", "");
     }
 
     private static String trim(JsonNode node, String field) {

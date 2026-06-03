@@ -61,6 +61,21 @@ public class DatasetCacheRepository {
                 )
                 """);
         jdbc.execute("""
+                CREATE TABLE IF NOT EXISTS dataset_dimension (
+                    resource_id TEXT NOT NULL,
+                    dimension_id TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    source_field TEXT,
+                    aggregate_key TEXT,
+                    count_unit TEXT,
+                    display_limit INTEGER NOT NULL DEFAULT 0,
+                    sort_order INTEGER NOT NULL DEFAULT 0,
+                    filterable INTEGER NOT NULL DEFAULT 0,
+                    PRIMARY KEY (resource_id, dimension_id)
+                )
+                """);
+        jdbc.execute("""
                 CREATE INDEX IF NOT EXISTS idx_dataset_record_resource
                 ON dataset_record (resource_id, row_index)
                 """);
@@ -208,6 +223,69 @@ public class DatasetCacheRepository {
                 );
             }
         }
+    }
+
+    /**
+     * Replace the dimension definitions for a resource. Schema is Postgres-portable so this
+     * survives a future swap from SQLite to JDBC-Postgres.
+     */
+    public void replaceDimensions(String resourceId, List<DatasetDimensionRow> rows) {
+        jdbc.update("DELETE FROM dataset_dimension WHERE resource_id = ?", resourceId);
+        if (rows == null || rows.isEmpty()) {
+            return;
+        }
+        jdbc.batchUpdate(
+                """
+                        INSERT INTO dataset_dimension (
+                            resource_id, dimension_id, label, role, source_field,
+                            aggregate_key, count_unit, display_limit, sort_order, filterable
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                new BatchPreparedStatementSetter() {
+                    @Override
+                    public void setValues(PreparedStatement ps, int i) throws SQLException {
+                        DatasetDimensionRow row = rows.get(i);
+                        ps.setString(1, resourceId);
+                        ps.setString(2, row.dimensionId());
+                        ps.setString(3, row.label());
+                        ps.setString(4, row.role());
+                        ps.setString(5, row.sourceField());
+                        ps.setString(6, row.aggregateKey());
+                        ps.setString(7, row.countUnit());
+                        ps.setInt(8, row.displayLimit());
+                        ps.setInt(9, row.sortOrder());
+                        ps.setInt(10, row.filterable() ? 1 : 0);
+                    }
+
+                    @Override
+                    public int getBatchSize() {
+                        return rows.size();
+                    }
+                }
+        );
+    }
+
+    public List<DatasetDimensionRow> loadDimensions(String resourceId) {
+        return jdbc.query(
+                """
+                        SELECT dimension_id, label, role, source_field, aggregate_key,
+                               count_unit, display_limit, sort_order, filterable
+                        FROM dataset_dimension WHERE resource_id = ?
+                        ORDER BY sort_order, dimension_id
+                        """,
+                (rs, rowNum) -> new DatasetDimensionRow(
+                        rs.getString("dimension_id"),
+                        rs.getString("label"),
+                        rs.getString("role"),
+                        rs.getString("source_field"),
+                        rs.getString("aggregate_key"),
+                        rs.getString("count_unit"),
+                        rs.getInt("display_limit"),
+                        rs.getInt("sort_order"),
+                        rs.getInt("filterable") != 0
+                ),
+                resourceId
+        );
     }
 
     public Map<String, Map<String, Integer>> loadAggregates(String resourceId) {

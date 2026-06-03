@@ -21,10 +21,21 @@ export interface DimensionItem {
   valueType: string;
 }
 
+export type DimensionRole =
+  | 'SUMMARY'
+  | 'GEOGRAPHY'
+  | 'TEMPORAL'
+  | 'CATEGORICAL'
+  | 'MEASURE';
+
 export interface DimensionGroup {
   id: string;
   label: string;
   items: DimensionItem[];
+  role?: DimensionRole | null;
+  cardinality?: number | null;
+  sourceField?: string | null;
+  filterable?: boolean;
 }
 
 export interface StateMetric {

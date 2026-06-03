@@ -3,11 +3,11 @@ package org.example.service;
 import org.example.dto.DatasetSummary;
 import org.example.dto.DimensionGroup;
 import org.example.dto.DimensionItem;
+import org.example.dto.DimensionRole;
 import org.example.dto.StateMetric;
 import org.example.service.datagov.McaCompanyMasterDatasetService;
 import org.springframework.stereotype.Service;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -248,20 +248,22 @@ public class DatasetCatalogService {
     }
 
     private static DimensionGroup geographyGroup() {
-        return new DimensionGroup("geography", "Geography", List.of(
+        List<DimensionItem> items = List.of(
                 new DimensionItem("country", "Country", "Republic of India", "string"),
                 new DimensionItem("state", "State / UT", "State or union territory", "string"),
                 new DimensionItem("district", "District", "Administrative district (when available)", "string"),
                 new DimensionItem("region", "Region", "North, South, East, West, Central, North-East", "string")
-        ));
+        );
+        return new DimensionGroup("geography", "Geography", items, DimensionRole.GEOGRAPHY, items.size(), null, false);
     }
 
     private static DimensionGroup timeGroup() {
-        return new DimensionGroup("time", "Time", List.of(
+        List<DimensionItem> items = List.of(
                 new DimensionItem("year", "Year", "Reference year of the observation", "year"),
                 new DimensionItem("period", "Period", "Annual, quarterly, or monthly period", "string"),
                 new DimensionItem("base-year", "Base year", "Index or growth base year", "year")
-        ));
+        );
+        return new DimensionGroup("time", "Time", items, DimensionRole.TEMPORAL, items.size(), null, false);
     }
 
     private static DimensionGroup sectorGroup(String... sectors) {
@@ -288,18 +290,19 @@ public class DatasetCatalogService {
                     valueType
             ));
         }
-        return new DimensionGroup("sector", "Sector", items);
+        return new DimensionGroup("sector", "Sector", items, DimensionRole.CATEGORICAL, items.size(), null, false);
     }
 
     private static DimensionGroup indicatorGroup(String... indicators) {
-        return new DimensionGroup("indicator", "Indicator", java.util.Arrays.stream(indicators)
+        List<DimensionItem> items = java.util.Arrays.stream(indicators)
                 .map(i -> new DimensionItem(
                         i.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-"),
                         i,
                         "Measure published on data.gov.in",
                         "number"
                 ))
-                .toList());
+                .toList();
+        return new DimensionGroup("indicator", "Indicator", items, DimensionRole.MEASURE, items.size(), null, false);
     }
 
     private static Map.Entry<String, Double> entry(String state, double value) {

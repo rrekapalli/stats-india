@@ -6,23 +6,26 @@ import org.example.cache.DatasetSyncService;
 import org.example.dto.DatasetDataResponse;
 import org.example.dto.DatasetFilter;
 import org.example.dto.DatasetSyncStatus;
+import org.example.dto.DimensionGroup;
 import org.example.service.datagov.McaCompanyMasterDatasetService;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class DatasetDataService {
 
     private final McaCompanyMasterDatasetService mcaCompanyMasterDatasetService;
+    private final CatalogExploreService catalogExploreService;
     private final DatasetSyncService datasetSyncService;
 
     public DatasetDataService(
             McaCompanyMasterDatasetService mcaCompanyMasterDatasetService,
+            CatalogExploreService catalogExploreService,
             DatasetSyncService datasetSyncService
     ) {
         this.mcaCompanyMasterDatasetService = mcaCompanyMasterDatasetService;
+        this.catalogExploreService = catalogExploreService;
         this.datasetSyncService = datasetSyncService;
     }
 
@@ -45,18 +48,41 @@ public class DatasetDataService {
     }
 
     public DatasetDataResponse getExploreSummary(String resourceId) {
-        requireLiveDataset(resourceId);
-        return mcaCompanyMasterDatasetService.getExploreSummary();
+        DatasetDataResponse response = supportsLiveData(resourceId)
+                ? mcaCompanyMasterDatasetService.getExploreSummary()
+                : catalogExploreService.exploreSummary(resourceId);
+        return enrichDimensions(response);
     }
 
     public DatasetDataResponse getExploreFiltered(String resourceId, List<DatasetFilter> filters) {
-        requireLiveDataset(resourceId);
-        return mcaCompanyMasterDatasetService.getExploreFiltered(filters);
+        if (!supportsLiveData(resourceId)) {
+            return enrichDimensions(catalogExploreService.exploreSummary(resourceId));
+        }
+        return enrichDimensions(mcaCompanyMasterDatasetService.getExploreFiltered(filters));
     }
 
     public DatasetDataResponse getExploreRecords(String resourceId, int offset, int limit) {
         requireLiveDataset(resourceId);
         return mcaCompanyMasterDatasetService.getExploreRecords(offset, limit);
+    }
+
+    private DatasetDataResponse enrichDimensions(DatasetDataResponse response) {
+        List<DimensionGroup> enriched = DimensionMetadataEnricher.enrichAll(response.dimensionGroups());
+        return new DatasetDataResponse(
+                response.resourceId(),
+                response.title(),
+                response.description(),
+                response.totalRecords(),
+                response.fetchedRecords(),
+                response.offset(),
+                response.limit(),
+                response.stateMetrics(),
+                enriched,
+                response.records(),
+                response.syncStatus(),
+                response.cachedAt(),
+                response.recordsCached()
+        );
     }
 
     public DatasetSyncStatus getSyncStatus(String resourceId) {
