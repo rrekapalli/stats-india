@@ -9,7 +9,7 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties(DataGovInProperties.class)
+@EnableConfigurationProperties({DataGovInProperties.class, org.example.cache.DatasetCacheProperties.class})
 public class AppConfig {
 
     @Bean

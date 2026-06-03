@@ -46,6 +46,19 @@ export interface DatasetDataResponse {
   stateMetrics: StateMetric[];
   dimensionGroups: DimensionGroup[];
   records: Record<string, string>[];
+  syncStatus: string;
+  cachedAt: string | null;
+  recordsCached: number;
+}
+
+export interface DatasetSyncStatus {
+  resourceId: string;
+  status: string;
+  portalTotal: number;
+  cachedRecords: number;
+  fetchedAt: string | null;
+  syncStartedAt: string | null;
+  lastError: string | null;
 }
 
 /** data.gov.in MCA company master resource */

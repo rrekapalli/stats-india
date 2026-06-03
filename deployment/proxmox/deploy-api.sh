@@ -48,7 +48,7 @@ ensure_java21 "$VMID"
 
 log_info "Creating app user and directories..."
 proxmox_exec_in_container "$VMID" "id -u ${APP_USER} >/dev/null 2>&1 || useradd -r -s /usr/sbin/nologin -d ${APP_DIR} ${APP_USER}" || true
-proxmox_exec_in_container "$VMID" "mkdir -p ${APP_DIR}/logs && chown -R ${APP_USER}:${APP_USER} ${APP_DIR} && chmod 755 ${APP_DIR}" || true
+proxmox_exec_in_container "$VMID" "mkdir -p ${APP_DIR}/logs ${APP_DIR}/cache && chown -R ${APP_USER}:${APP_USER} ${APP_DIR} && chmod 755 ${APP_DIR}" || true
 
 REMOTE_JAR="${APP_DIR}/stats-india.jar"
 log_info "Uploading JAR..."
@@ -56,7 +56,8 @@ proxmox_push_file "$VMID" "$JAR_PATH" "$REMOTE_JAR"
 proxmox_exec_in_container "$VMID" "chown ${APP_USER}:${APP_USER} ${REMOTE_JAR} && chmod 644 ${REMOTE_JAR}"
 
 SPRING_PROFILES="${SPRING_PROFILES_ACTIVE:-prod}"
-JAVA_OPTS="${STATS_INDIA_JAVA_OPTS:--Xms256m -Xmx768m}"
+JAVA_OPTS="${STATS_INDIA_JAVA_OPTS:--Xms256m -Xmx1536m}"
+CACHE_ENV_LINE="Environment=\"STATS_INDIA_CACHE_DIR=${APP_DIR}/cache\""
 DATAGOV_ENV_LINE=""
 if [[ -n "${DATA_GOV_IN_API_KEY:-}" ]]; then
     DATAGOV_ENV_LINE="Environment=\"DATA_GOV_IN_API_KEY=${DATA_GOV_IN_API_KEY}\""
@@ -76,6 +77,7 @@ Group=${APP_USER}
 WorkingDirectory=${APP_DIR}
 Environment="SPRING_PROFILES_ACTIVE=${SPRING_PROFILES}"
 Environment="SERVER_PORT=${API_PORT}"
+${CACHE_ENV_LINE}
 ${DATAGOV_ENV_LINE}
 ExecStart=/usr/bin/java ${JAVA_OPTS} -jar ${REMOTE_JAR}
 Restart=on-failure

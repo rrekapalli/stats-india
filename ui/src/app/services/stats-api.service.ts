@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import {
   DatasetDataResponse,
   DatasetSummary,
+  DatasetSyncStatus,
   DimensionGroup,
   HealthResponse,
   StateMetric
@@ -37,10 +38,23 @@ export class StatsApiService {
   getDatasetData(
     datasetId: string,
     offset = 0,
-    limit = 1000
+    limit = 1000,
+    includeRecords = true
   ): Observable<DatasetDataResponse> {
     return this.http.get<DatasetDataResponse>(`${this.base}/datasets/${datasetId}/data`, {
-      params: { offset: String(offset), limit: String(limit) }
+      params: {
+        offset: String(offset),
+        limit: String(limit),
+        includeRecords: String(includeRecords)
+      }
     });
+  }
+
+  getSyncStatus(datasetId: string): Observable<DatasetSyncStatus> {
+    return this.http.get<DatasetSyncStatus>(`${this.base}/datasets/${datasetId}/sync`);
+  }
+
+  triggerSync(datasetId: string): Observable<DatasetSyncStatus> {
+    return this.http.post<DatasetSyncStatus>(`${this.base}/datasets/${datasetId}/sync`, null);
   }
 }

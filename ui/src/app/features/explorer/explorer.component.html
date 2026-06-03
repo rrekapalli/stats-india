@@ -68,7 +68,7 @@
         }
       </div>
 
-      <p-tabs [(value)]="activeTab" class="explorer-tabs">
+      <p-tabs [(value)]="activeTab" class="explorer-tabs" (valueChange)="onTabChange($event)">
         <p-tablist>
           <p-tab value="visualization">Visualizations</p-tab>
           <p-tab value="data">Data</p-tab>
@@ -76,6 +76,13 @@
         <p-tabpanels>
           <p-tabpanel value="visualization">
             <div class="viz-tab-shell">
+            @if (isLiveDataset() && isSyncInProgress()) {
+              <p class="sync-banner muted">
+                Syncing full dataset from data.gov.in…
+                {{ recordsCached | number }} / {{ liveTotalRecords | number }} records
+                ({{ syncProgressPercent() }}%)
+              </p>
+            }
             <div class="viz-dashboard">
               @if (loading) {
                 <p class="muted center dashboard-loading">Loading visualizations…</p>
@@ -85,7 +92,7 @@
                 <article class="dashboard-widget widget-map">
                   <app-india-state-map
                     [metrics]="stateMetrics"
-                    [title]="isLiveDataset() ? 'Companies by state (sample)' : (selectedDataset?.title ?? 'India map')"
+                    [title]="isLiveDataset() ? 'Companies by state' : (selectedDataset?.title ?? 'India map')"
                     [unit]="stateMetrics[0]?.unit ?? ''"
                     [embedded]="true" />
                 </article>
@@ -99,13 +106,13 @@
                         <span class="kpi-label">Portal total</span>
                       </div>
                       <div class="kpi-card">
-                        <span class="kpi-value">{{ liveSampleSize | number }}</span>
-                        <span class="kpi-label">Sample size</span>
+                        <span class="kpi-value">{{ recordsCached | number }}</span>
+                        <span class="kpi-label">Cached locally</span>
                       </div>
                     }
                     <div class="kpi-card">
                       <span class="kpi-value">{{ stateMetrics.length }}</span>
-                      <span class="kpi-label">States in sample</span>
+                      <span class="kpi-label">States / UTs</span>
                     </div>
                     @for (item of summaryHighlights(); track item.label) {
                       <div class="kpi-card">
@@ -171,9 +178,19 @@
           </p-tabpanel>
           <p-tabpanel value="data">
             <div class="data-tab-shell">
-            @if (isLiveDataset() && datasetRecords.length) {
-              <p-table [value]="datasetRecords" [paginator]="true" [rows]="15"
-                       styleClass="p-datatable-sm" [scrollable]="true" scrollHeight="flex">
+            @if (isLiveDataset()) {
+              <p-table
+                [value]="datasetRecords"
+                [lazy]="true"
+                [paginator]="true"
+                [rows]="dataRows"
+                [first]="dataFirst"
+                [totalRecords]="recordsCached || liveTotalRecords"
+                [loading]="dataLoading"
+                (onLazyLoad)="loadDataPage($event)"
+                styleClass="p-datatable-sm"
+                [scrollable]="true"
+                scrollHeight="flex">
                 <ng-template pTemplate="header">
                   <tr>
                     <th>Company</th>
@@ -285,8 +302,13 @@
           @case ('dimensions') {
             @if (isLiveDataset() && liveTotalRecords) {
               <p class="sample-note muted drawer-sample-note">
-                Sample of {{ liveSampleSize | number }} records (offset 0) from
-                {{ liveTotalRecords | number }} total on data.gov.in
+                {{ recordsCached | number }} of {{ liveTotalRecords | number }} records cached locally
+                @if (cachedAt) {
+                  · last synced {{ cachedAt | date:'medium' }}
+                }
+                @if (isSyncInProgress()) {
+                  · sync in progress ({{ syncProgressPercent() }}%)
+                }
               </p>
             }
             @if (loading && !dimensions.length) {

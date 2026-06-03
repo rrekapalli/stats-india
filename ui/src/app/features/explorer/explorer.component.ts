@@ -1,14 +1,15 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AccordionModule } from 'primeng/accordion';
 import { TabsModule } from 'primeng/tabs';
-import { TableModule } from 'primeng/table';
+import { TableLazyLoadEvent, TableModule } from 'primeng/table';
 import { ButtonModule } from 'primeng/button';
 import { ScrollPanelModule } from 'primeng/scrollpanel';
 import { TagModule } from 'primeng/tag';
 import { StatsApiService } from '../../services/stats-api.service';
 import {
+  DatasetDataResponse,
   DatasetSummary,
   DimensionGroup,
   MCA_COMPANY_MASTER_RESOURCE_ID,
@@ -37,7 +38,7 @@ type RightDrawer = 'dimensions' | 'filters' | 'map-settings' | 'dataset-info' | 
   styleUrl: './explorer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ExplorerComponent implements OnInit {
+export class ExplorerComponent implements OnInit, OnDestroy {
   private readonly api = inject(StatsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -49,7 +50,9 @@ export class ExplorerComponent implements OnInit {
   datasetRecords: Record<string, string>[] = [];
   selectedDataset: DatasetSummary | null = null;
   liveTotalRecords = 0;
-  liveSampleSize = 0;
+  recordsCached = 0;
+  syncStatus = '';
+  cachedAt: string | null = null;
 
   activeLeftDrawer: LeftDrawer = null;
   activeRightDrawer: RightDrawer = null;
@@ -57,7 +60,13 @@ export class ExplorerComponent implements OnInit {
   accordionPanels: string[] = ['summary', 'company-status', 'state'];
 
   loading = true;
+  dataLoading = false;
   error: string | null = null;
+
+  dataFirst = 0;
+  dataRows = 25;
+
+  private syncPollTimer: ReturnType<typeof setInterval> | null = null;
 
   readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
 
@@ -81,14 +90,21 @@ export class ExplorerComponent implements OnInit {
     });
   }
 
+  ngOnDestroy(): void {
+    this.stopSyncPolling();
+  }
+
   selectDataset(dataset: DatasetSummary): void {
     this.selectedDataset = dataset;
     this.error = null;
     this.loading = true;
+    this.dataFirst = 0;
+    this.datasetRecords = [];
+    this.stopSyncPolling();
     this.cdr.markForCheck();
 
     if (dataset.id === MCA_COMPANY_MASTER_RESOURCE_ID) {
-      this.loadLiveDataset(dataset.id);
+      this.loadLiveDatasetSummary(dataset.id);
       return;
     }
 
@@ -114,20 +130,18 @@ export class ExplorerComponent implements OnInit {
     });
   }
 
-  private loadLiveDataset(resourceId: string): void {
-    this.api.getDatasetData(resourceId, 0, 1000).subscribe({
+  private loadLiveDatasetSummary(resourceId: string): void {
+    this.api.getDatasetData(resourceId, 0, 0, false).subscribe({
       next: data => {
-        this.dimensions = data.dimensionGroups;
-        this.stateMetrics = data.stateMetrics;
-        this.datasetRecords = data.records;
-        this.liveTotalRecords = data.totalRecords;
-        this.liveSampleSize = data.fetchedRecords;
-        this.accordionPanels = data.dimensionGroups.map(g => g.id).slice(0, 4);
+        this.applyLiveDatasetResponse(data);
         this.loading = false;
+        if (this.isSyncInProgress()) {
+          this.startSyncPolling(resourceId);
+        }
         this.cdr.markForCheck();
       },
       error: err => {
-        const message = err?.error?.message ?? err?.message ?? 'Unable to load live dataset from data.gov.in.';
+        const message = err?.error?.message ?? err?.message ?? 'Unable to load dataset from cache.';
         this.error = message;
         this.loading = false;
         this.cdr.markForCheck();
@@ -135,8 +149,88 @@ export class ExplorerComponent implements OnInit {
     });
   }
 
+  loadDataPage(event?: TableLazyLoadEvent): void {
+    if (!this.selectedDataset || !this.isLiveDataset()) {
+      return;
+    }
+    this.dataFirst = event?.first ?? this.dataFirst;
+    this.dataRows = event?.rows ?? this.dataRows;
+    this.dataLoading = true;
+    this.cdr.markForCheck();
+
+    this.api.getDatasetData(this.selectedDataset.id, this.dataFirst, this.dataRows, true).subscribe({
+      next: data => {
+        this.datasetRecords = data.records;
+        this.recordsCached = data.recordsCached;
+        this.liveTotalRecords = data.totalRecords;
+        this.syncStatus = data.syncStatus;
+        this.dataLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.dataLoading = false;
+        this.cdr.markForCheck();
+      }
+    });
+  }
+
+  onDataTabActivated(): void {
+    if (this.isLiveDataset() && !this.dataLoading) {
+      this.loadDataPage({ first: this.dataFirst, rows: this.dataRows });
+    }
+  }
+
+  onTabChange(tab: string | number | undefined): void {
+    if (tab === 'data') {
+      this.onDataTabActivated();
+    }
+  }
+
+  private applyLiveDatasetResponse(data: DatasetDataResponse): void {
+    this.dimensions = data.dimensionGroups;
+    this.stateMetrics = data.stateMetrics;
+    this.liveTotalRecords = data.totalRecords;
+    this.recordsCached = data.recordsCached;
+    this.syncStatus = data.syncStatus;
+    this.cachedAt = data.cachedAt;
+    this.accordionPanels = data.dimensionGroups.map(g => g.id).slice(0, 4);
+  }
+
   isLiveDataset(): boolean {
     return this.selectedDataset?.id === MCA_COMPANY_MASTER_RESOURCE_ID;
+  }
+
+  isSyncInProgress(): boolean {
+    return this.syncStatus === 'SYNCING' || this.syncStatus === 'MISSING';
+  }
+
+  syncProgressPercent(): number {
+    if (!this.liveTotalRecords) {
+      return 0;
+    }
+    return Math.min(100, Math.round((this.recordsCached / this.liveTotalRecords) * 100));
+  }
+
+  private startSyncPolling(resourceId: string): void {
+    this.stopSyncPolling();
+    this.syncPollTimer = setInterval(() => {
+      this.api.getDatasetData(resourceId, 0, 0, false).subscribe({
+        next: data => {
+          this.applyLiveDatasetResponse(data);
+          if (!this.isSyncInProgress()) {
+            this.stopSyncPolling();
+          }
+          this.cdr.markForCheck();
+        }
+      });
+    }, 5000);
+  }
+
+  private stopSyncPolling(): void {
+    if (this.syncPollTimer) {
+      clearInterval(this.syncPollTimer);
+      this.syncPollTimer = null;
+    }
   }
 
   toggleLeftDrawer(drawer: Exclude<LeftDrawer, null>): void {

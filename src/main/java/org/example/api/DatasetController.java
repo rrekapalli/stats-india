@@ -2,6 +2,7 @@ package org.example.api;
 
 import org.example.dto.DatasetDataResponse;
 import org.example.dto.DatasetSummary;
+import org.example.dto.DatasetSyncStatus;
 import org.example.dto.DimensionGroup;
 import org.example.dto.StateMetric;
 import org.example.service.DatasetDataService;
@@ -9,6 +10,7 @@ import org.example.service.DatasetCatalogService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -54,7 +56,7 @@ public class DatasetController {
     @GetMapping("/{id}/state-metrics")
     public List<StateMetric> getStateMetrics(@PathVariable String id) {
         if (datasetDataService.supportsLiveData(id)) {
-            return datasetDataService.getDataset(id, 0, 1000).stateMetrics();
+            return datasetDataService.getDataset(id, 0, 0, false).stateMetrics();
         }
         try {
             return catalogService.getStateMetrics(id);
@@ -63,17 +65,37 @@ public class DatasetController {
         }
     }
 
+    @GetMapping("/{id}/sync")
+    public DatasetSyncStatus getSyncStatus(@PathVariable String id) {
+        try {
+            return datasetDataService.getSyncStatus(id);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/sync")
+    public DatasetSyncStatus triggerSync(@PathVariable String id) {
+        try {
+            datasetDataService.triggerSync(id);
+            return datasetDataService.getSyncStatus(id);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
+    }
+
     /**
-     * Fetch live dataset rows from data.gov.in, transformed for visualization.
+     * Cached dataset rows and aggregates (SQLite). Portal sync runs in the background when stale.
      */
     @GetMapping("/{id}/data")
     public DatasetDataResponse getDatasetData(
             @PathVariable String id,
             @RequestParam(defaultValue = "0") int offset,
-            @RequestParam(defaultValue = "1000") int limit
+            @RequestParam(defaultValue = "1000") int limit,
+            @RequestParam(defaultValue = "true") boolean includeRecords
     ) {
         try {
-            return datasetDataService.getDataset(id, offset, limit);
+            return datasetDataService.getDataset(id, offset, limit, includeRecords);
         } catch (IllegalArgumentException ex) {
             if (ex.getMessage() != null && ex.getMessage().startsWith("No live data provider")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
