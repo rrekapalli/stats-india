@@ -33,6 +33,7 @@ import {
 import {
   chartableDimensionGroups,
   dimensionGroupTotal,
+  DimensionBreakdownOptions,
   dimensionToBarItems,
   dimensionToPieItems,
   resolveDimensionChartSlots
@@ -148,6 +149,8 @@ export class ExplorerComponent implements OnInit {
     this.api.getDimensions(dataset.id).subscribe({
       next: dimensions => {
         this.dimensions = dimensions;
+        this.unfilteredDimensions = dimensions;
+        this.updateAccordionPanels(dimensions);
         this.cdr.markForCheck();
       }
     });
@@ -354,22 +357,26 @@ export class ExplorerComponent implements OnInit {
 
   pieChartItems(): PieChartItem[] {
     const group = this.pieDimensionGroup();
-    return group ? dimensionToPieItems(group) : [];
+    return group ? dimensionToPieItems(group, this.chartBreakdownOptions()) : [];
   }
 
   barChartItems(): BarChartItem[] {
     const group = this.barDimensionGroup();
-    return group ? dimensionToBarItems(group) : [];
+    return group ? dimensionToBarItems(group, this.chartBreakdownOptions()) : [];
   }
 
   pieChartTotal(): number {
     const group = this.pieDimensionGroup();
-    return group ? dimensionGroupTotal(group) : 0;
+    return group ? dimensionGroupTotal(group, this.chartBreakdownOptions()) : 0;
   }
 
   barChartTotal(): number {
     const group = this.barDimensionGroup();
-    return group ? dimensionGroupTotal(group) : 0;
+    return group ? dimensionGroupTotal(group, this.chartBreakdownOptions()) : 0;
+  }
+
+  private chartBreakdownOptions(): DimensionBreakdownOptions {
+    return { valueTotalHint: this.stateMetricsTotal() };
   }
 
   dimensionBarSelectedIds(dimensionId: string): string[] {
@@ -585,7 +592,7 @@ export class ExplorerComponent implements OnInit {
 
   dimensionGroupTotalById(groupId: string): number {
     const group = this.dimensionGroup(groupId);
-    return group ? dimensionGroupTotal(group) : 0;
+    return group ? dimensionGroupTotal(group, this.chartBreakdownOptions()) : 0;
   }
 
   datasetTitleLabel(): string {

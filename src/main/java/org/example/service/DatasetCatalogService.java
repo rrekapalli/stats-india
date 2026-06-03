@@ -83,25 +83,25 @@ public class DatasetCatalogService {
             "agriculture-production", List.of(
                     geographyGroup(),
                     timeGroup(),
-                    sectorGroup("Cereals", "Pulses", "Oilseeds", "Horticulture"),
+                    sectorGroup(new int[]{1582, 365, 548, 547}, "Cereals", "Pulses", "Oilseeds", "Horticulture"),
                     indicatorGroup("Production (MT)", "Yield (kg/ha)", "Area (000 ha)")
             ),
             "health-facilities", List.of(
                     geographyGroup(),
                     timeGroup(),
-                    sectorGroup("Primary care", "Secondary care", "Tertiary care"),
+                    sectorGroup(new int[]{7312, 6398, 4570}, "Primary care", "Secondary care", "Tertiary care"),
                     indicatorGroup("Facilities count", "Beds per 1000", "Doctors per lakh")
             ),
             "education-enrollment", List.of(
                     geographyGroup(),
                     timeGroup(),
-                    sectorGroup("Primary", "Upper primary", "Secondary", "Higher secondary"),
+                    sectorGroup(new int[]{28, 22, 26, 24}, "Primary", "Upper primary", "Secondary", "Higher secondary"),
                     indicatorGroup("GER (%)", "Schools count", "Pupil-teacher ratio")
             ),
             "renewable-energy", List.of(
                     geographyGroup(),
                     timeGroup(),
-                    sectorGroup("Solar", "Wind", "Biomass", "Small hydro"),
+                    sectorGroup(new int[]{42, 38, 12, 8}, "Solar", "Wind", "Biomass", "Small hydro"),
                     indicatorGroup("Installed capacity (MW)", "Generation (MU)", "Share of total (%)")
             )
     );
@@ -265,14 +265,30 @@ public class DatasetCatalogService {
     }
 
     private static DimensionGroup sectorGroup(String... sectors) {
-        return new DimensionGroup("sector", "Sector", java.util.Arrays.stream(sectors)
-                .map(s -> new DimensionItem(
-                        s.toLowerCase(Locale.ROOT).replace(' ', '-'),
-                        s,
-                        "Sector filter for " + s,
-                        "string"
-                ))
-                .toList());
+        return sectorGroup(null, sectors);
+    }
+
+    private static DimensionGroup sectorGroup(int[] counts, String... sectors) {
+        if (counts != null && counts.length != sectors.length) {
+            throw new IllegalArgumentException("Sector count array length must match sector labels");
+        }
+        java.util.List<DimensionItem> items = new java.util.ArrayList<>();
+        for (int i = 0; i < sectors.length; i++) {
+            String sector = sectors[i];
+            String valueType = counts != null
+                    ? String.valueOf(counts[i])
+                    : "string";
+            String description = counts != null
+                    ? counts[i] + " aggregated records"
+                    : "Sector filter for " + sector;
+            items.add(new DimensionItem(
+                    sector.toLowerCase(Locale.ROOT).replace(' ', '-'),
+                    sector,
+                    description,
+                    valueType
+            ));
+        }
+        return new DimensionGroup("sector", "Sector", items);
     }
 
     private static DimensionGroup indicatorGroup(String... indicators) {
