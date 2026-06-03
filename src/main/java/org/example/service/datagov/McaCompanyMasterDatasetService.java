@@ -10,6 +10,8 @@ import org.example.dto.DimensionGroup;
 import org.example.dto.DimensionItem;
 import org.example.dto.DimensionRole;
 import org.example.dto.StateMetric;
+import org.example.dto.StateTimeSeries;
+import org.example.service.StateTimeSeriesBuilder;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -144,7 +146,8 @@ public class McaCompanyMasterDatasetService {
         }
         DatasetCacheMeta meta = metaOpt.get();
         Map<String, Map<String, Integer>> aggregates = cacheRepository.loadAggregates(RESOURCE_ID);
-        return buildResponse(meta, aggregates, List.of(), 0, 0, null, false);
+        StateTimeSeries timeSeries = StateTimeSeriesBuilder.buildMcaSeries(cacheRepository, RESOURCE_ID, List.of());
+        return buildResponse(meta, aggregates, List.of(), 0, 0, null, false, timeSeries);
     }
 
     public DatasetDataResponse getExploreFiltered(List<DatasetFilter> filters) {
@@ -157,7 +160,8 @@ public class McaCompanyMasterDatasetService {
             return getExploreSummary();
         }
         FilteredAggregateResult filtered = computeFilteredAggregates(filters);
-        return buildResponse(meta, filtered.aggregates(), List.of(), 0, 0, filtered.matchCount(), false);
+        StateTimeSeries timeSeries = StateTimeSeriesBuilder.buildMcaSeries(cacheRepository, RESOURCE_ID, filters);
+        return buildResponse(meta, filtered.aggregates(), List.of(), 0, 0, filtered.matchCount(), false, timeSeries);
     }
 
     /** Paginated row read for the Data tab — meta + page of records only (no aggregate rebuild). */
@@ -201,7 +205,9 @@ public class McaCompanyMasterDatasetService {
         List<Map<String, String>> records = includeRecords && limit > 0
                 ? cacheRepository.loadRecords(RESOURCE_ID, offset, limit)
                 : List.of();
-        return buildResponse(meta, aggregates, records, offset, limit, filteredCount, false);
+        List<DatasetFilter> safeFilters = filters == null ? List.of() : filters;
+        StateTimeSeries timeSeries = StateTimeSeriesBuilder.buildMcaSeries(cacheRepository, RESOURCE_ID, safeFilters);
+        return buildResponse(meta, aggregates, records, offset, limit, filteredCount, false, timeSeries);
     }
 
     private record FilteredAggregateResult(Map<String, Map<String, Integer>> aggregates, long matchCount) {}
@@ -243,7 +249,8 @@ public class McaCompanyMasterDatasetService {
             int offset,
             int limit,
             Long filteredCount,
-            boolean skipCountRecords
+            boolean skipCountRecords,
+            StateTimeSeries stateTimeSeries
     ) {
         Map<String, Integer> byState = aggregates.getOrDefault("state", Map.of());
 
@@ -276,7 +283,8 @@ public class McaCompanyMasterDatasetService {
                 records,
                 meta.status().name(),
                 formatInstant(meta.fetchedAt()),
-                displayCount
+                displayCount,
+                stateTimeSeries
         );
     }
 
@@ -299,7 +307,8 @@ public class McaCompanyMasterDatasetService {
                 records,
                 meta.status().name(),
                 formatInstant(meta.fetchedAt()),
-                meta.cachedRecords()
+                meta.cachedRecords(),
+                null
         );
     }
 
@@ -317,7 +326,8 @@ public class McaCompanyMasterDatasetService {
                 List.of(),
                 syncStatus,
                 formatInstant(cachedAt),
-                recordsCached
+                recordsCached,
+                null
         );
     }
 
@@ -364,7 +374,7 @@ public class McaCompanyMasterDatasetService {
         return row;
     }
 
-    static String normalizeState(String raw) {
+    public static String normalizeState(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
@@ -401,6 +411,11 @@ public class McaCompanyMasterDatasetService {
     }
 
     private static String stateCode(String stateName) {
+        return stateCodeFor(stateName);
+    }
+
+    /** Exposed for time-series line labels (state code in tooltips). */
+    public static String stateCodeFor(String stateName) {
         return switch (stateName) {
             case "Andhra Pradesh" -> "AP";
             case "Arunachal Pradesh" -> "AR";

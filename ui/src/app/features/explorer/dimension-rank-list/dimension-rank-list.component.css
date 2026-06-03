@@ -1,0 +1,107 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+  container-type: size;
+}
+
+.dim-ranking-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.dim-ranking-list li {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+}
+
+.dim-rank-row {
+  position: relative;
+  width: 100%;
+  flex: 1 1 0;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  transition: opacity 120ms ease, box-shadow 120ms ease;
+  background: transparent;
+}
+
+.dim-rank-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--p-surface-50, #f8fafc);
+  z-index: 0;
+}
+
+.dim-rank-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  min-width: 0;
+  opacity: 0.82;
+  transition: width 200ms ease, opacity 120ms ease;
+}
+
+.dim-rank-row:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-primary-color, #1565c0) 30%, transparent);
+}
+
+.dim-rank-row:hover .dim-rank-fill {
+  opacity: 0.95;
+}
+
+.dim-rank-row.selected {
+  box-shadow: inset 3px 0 0 var(--p-primary-color, #1565c0);
+}
+
+.dim-rank-row.dimmed {
+  opacity: 0.38;
+}
+
+.dim-rank-row.dimmed.selected {
+  opacity: 1;
+}
+
+.dim-rank-label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  padding: 0 0.2rem;
+  font-size: clamp(0.42rem, 1.8cqh, 0.58rem);
+  line-height: 1.15;
+  color: var(--p-text-color, #0f172a);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dim-rank-num {
+  font-weight: 700;
+  margin-right: 0.08rem;
+}
+
+.dim-rank-name {
+  font-weight: 600;
+}
+
+.dim-rank-metric {
+  color: var(--p-text-muted-color, #475569);
+  font-variant-numeric: tabular-nums;
+}

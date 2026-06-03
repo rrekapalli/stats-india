@@ -1,0 +1,24 @@
+<ul class="dim-ranking-list" aria-label="Dimension breakdown">
+  @for (entry of rankedItems(); track entry.id) {
+    <li>
+      <button
+        type="button"
+        class="dim-rank-row"
+        [class.selected]="isSelected(entry)"
+        [class.dimmed]="isDimmed(entry)"
+        (click)="onClick({ id: entry.id, label: entry.label, value: entry.value })">
+        <span class="dim-rank-bg" aria-hidden="true">
+          <span
+            class="dim-rank-fill"
+            [style.width.%]="entry.percentWidth"
+            [style.background-color]="entry.color"></span>
+        </span>
+        <span class="dim-rank-label">
+          <span class="dim-rank-num">{{ entry.rank }}.</span>
+          <span class="dim-rank-name">{{ entry.label }}</span>
+          <span class="dim-rank-metric">– {{ entry.valueLabel }}@if (unit) { {{ unit }} } ({{ entry.percentLabel }})</span>
+        </span>
+      </button>
+    </li>
+  }
+</ul>

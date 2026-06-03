@@ -45,7 +45,11 @@ public class CatalogExploreService {
                 List.of(),
                 DatasetFetchStatus.READY.name(),
                 null,
-                0L
+                0L,
+                StateTimeSeriesBuilder.buildCatalogSeries(
+                        stateMetrics,
+                        stateMetrics.isEmpty() ? "value" : stateMetrics.get(0).unit()
+                )
         );
     }
 

@@ -136,7 +136,7 @@ export function resolveVisualizationSlots(dimensions: DimensionGroup[]): Visuali
     }
   }
 
-  return [verticalBarSlot, horizontalBarSlot].filter((slot): slot is VisualizationSlot => slot != null);
+  return [horizontalBarSlot, verticalBarSlot].filter((slot): slot is VisualizationSlot => slot != null);
 }
 
 /** @deprecated Use {@link resolveVisualizationSlots} instead. Kept for callers in transition. */

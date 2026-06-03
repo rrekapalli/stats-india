@@ -16,10 +16,14 @@ import {
   DimensionGroup,
   DimensionItem,
   MCA_COMPANY_MASTER_RESOURCE_ID,
-  StateMetric
+  STATE_TIME_SERIES_MIN_YEARS,
+  StateMetric,
+  StateTimeSeries
 } from '../../models/dataset.models';
 import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component';
 import { GeographyWidgetComponent } from './geography-widget/geography-widget.component';
+import { StateMultiLineChartComponent } from './state-multi-line-chart/state-multi-line-chart.component';
+import { DimensionRankListComponent } from './dimension-rank-list/dimension-rank-list.component';
 import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
 import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
 import {
@@ -63,6 +67,8 @@ interface GlanceTile {
     TooltipModule,
     BarChartComponent,
     GeographyWidgetComponent,
+    StateMultiLineChartComponent,
+    DimensionRankListComponent,
     ExplorerFilterChipsComponent
   ],
   templateUrl: './explorer.component.html',
@@ -78,6 +84,7 @@ export class ExplorerComponent implements OnInit {
   datasets: DatasetSummary[] = [];
   dimensions: DimensionGroup[] = [];
   stateMetrics: StateMetric[] = [];
+  stateTimeSeries: StateTimeSeries | null = null;
   datasetRecords: Record<string, string>[] = [];
   selectedDataset: DatasetSummary | null = null;
   liveTotalRecords = 0;
@@ -100,6 +107,7 @@ export class ExplorerComponent implements OnInit {
   readonly crossFilter = new ExplorerCrossFilter();
 
   private unfilteredStateMetrics: StateMetric[] = [];
+  private unfilteredStateTimeSeries: StateTimeSeries | null = null;
   private unfilteredDimensions: DimensionGroup[] = [];
   /** Ignores stale cross-filter HTTP responses when filters change quickly. */
   private crossFilterRequestId = 0;
@@ -134,7 +142,9 @@ export class ExplorerComponent implements OnInit {
     this.dataFirst = 0;
     this.datasetRecords = [];
     this.unfilteredStateMetrics = [];
+    this.unfilteredStateTimeSeries = null;
     this.unfilteredDimensions = [];
+    this.stateTimeSeries = null;
     this.crossFilter.clear();
     this.cdr.markForCheck();
 
@@ -197,6 +207,7 @@ export class ExplorerComponent implements OnInit {
 
   private applyExploreResponse(data: DatasetDataResponse): void {
     this.unfilteredStateMetrics = data.stateMetrics;
+    this.unfilteredStateTimeSeries = data.stateTimeSeries ?? null;
     this.unfilteredDimensions = data.dimensionGroups;
     this.liveTotalRecords = data.totalRecords;
     this.recordsCached = data.recordsCached;
@@ -207,6 +218,7 @@ export class ExplorerComponent implements OnInit {
     } else {
       this.dimensions = data.dimensionGroups;
       this.stateMetrics = data.stateMetrics;
+      this.stateTimeSeries = data.stateTimeSeries ?? null;
     }
     this.updateAccordionPanels(this.dimensions);
   }
@@ -214,6 +226,7 @@ export class ExplorerComponent implements OnInit {
   private applyCrossFiltersFromServer(): void {
     if (!this.crossFilter.active) {
       this.stateMetrics = this.unfilteredStateMetrics;
+      this.stateTimeSeries = this.unfilteredStateTimeSeries;
       this.dimensions = this.unfilteredDimensions;
       this.updateAccordionPanels(this.dimensions);
       return;
@@ -232,6 +245,7 @@ export class ExplorerComponent implements OnInit {
             return;
           }
           this.stateMetrics = data.stateMetrics;
+          this.stateTimeSeries = data.stateTimeSeries ?? null;
           this.dimensions = data.dimensionGroups;
           this.recordsCached = data.recordsCached;
           this.filterApplying = false;
@@ -345,6 +359,24 @@ export class ExplorerComponent implements OnInit {
     return resolveVisualizationSlots(layout);
   }
 
+  showStateTimeSeries(): boolean {
+    const series = this.stateTimeSeriesForDisplay();
+    return !!series?.years?.length && series.years.length >= STATE_TIME_SERIES_MIN_YEARS;
+  }
+
+  stateTimeSeriesForDisplay(): StateTimeSeries | null {
+    return this.stateTimeSeries ?? this.unfilteredStateTimeSeries;
+  }
+
+  lineChartTitle(): string {
+    const unit = this.stateTimeSeriesForDisplay()?.unit ?? this.stateMetrics[0]?.unit ?? '';
+    return unit ? `By state over time (${unit})` : 'By state over time';
+  }
+
+  dashboardHasLineChart(): boolean {
+    return this.showStateTimeSeries();
+  }
+
   slotGroup(slot: VisualizationSlot): DimensionGroup | undefined {
     return this.dimensionGroup(slot.dimensionId);
   }
@@ -402,6 +434,7 @@ export class ExplorerComponent implements OnInit {
     this.crossFilterRequestId++;
     this.crossFilter.clear();
     this.stateMetrics = this.unfilteredStateMetrics;
+    this.stateTimeSeries = this.unfilteredStateTimeSeries;
     this.dimensions = this.unfilteredDimensions;
     this.updateAccordionPanels(this.dimensions);
     this.cdr.markForCheck();

@@ -401,16 +401,49 @@
 }
 
 .widget-bar-horizontal {
-  grid-column: 7 / 11;
+  grid-column: 7 / 9;
+  grid-row: 2 / 20;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.widget-line-chart {
+  /* Map uses cols 1–6; timeline fills the remaining cols 7–12 beside the map */
+  grid-column: 7 / -1;
   grid-row: 2 / 11;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
+.viz-has-line-chart .widget-bar-horizontal {
+  grid-column: 7 / 9;
+  grid-row: 11 / 20;
+}
+
+.viz-has-line-chart .dashboard-widget.widget-bar-vertical {
+  grid-column: 9 / -1;
+  grid-row: 11 / 20;
+}
+
+.widget-line-chart .widget-body.widget-chart-body {
+  padding: 0.15rem 0.25rem 0.2rem;
+}
+
+.widget-line-chart app-state-multi-line-chart {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .widget-bar-horizontal .widget-body.widget-chart-body {
-  padding: 0.15rem 0.3rem 0.1rem 3%;
+  padding: 0.1rem 0.15rem;
   box-sizing: border-box;
+}
+
+.widget-bar-horizontal app-dimension-rank-list {
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .widget-status {
@@ -428,8 +461,8 @@
 }
 
 .dashboard-widget.widget-bar-vertical {
-  grid-column: 7 / 11;
-  grid-row: 11 / 20;
+  grid-column: 9 / -1;
+  grid-row: 2 / 20;
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -652,11 +685,16 @@
 
   .kpi-strip,
   .widget-geography,
+  .widget-line-chart,
   .widget-bar-horizontal,
   .widget-status,
   .widget-bar-vertical {
     grid-column: 1 / -1;
     grid-row: auto;
+  }
+
+  .widget-line-chart {
+    min-height: 220px;
   }
 
   .widget-bar-horizontal {

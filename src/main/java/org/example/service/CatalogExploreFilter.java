@@ -6,6 +6,7 @@ import org.example.dto.DimensionGroup;
 import org.example.dto.DimensionItem;
 import org.example.dto.DimensionRole;
 import org.example.dto.StateMetric;
+import org.example.dto.StateTimeSeries;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +87,14 @@ final class CatalogExploreFilter {
                 filteredTotal
         );
 
+        StateTimeSeries timeSeries = base.stateTimeSeries();
+        if (timeSeries != null) {
+            timeSeries = StateTimeSeriesBuilder.scaleSeries(timeSeries, filterScale);
+            if (selectedStateName != null) {
+                timeSeries = StateTimeSeriesBuilder.filterToSingleState(timeSeries, selectedStateName);
+            }
+        }
+
         return new DatasetDataResponse(
                 base.resourceId(),
                 base.title(),
@@ -99,7 +108,8 @@ final class CatalogExploreFilter {
                 base.records(),
                 base.syncStatus(),
                 base.cachedAt(),
-                Math.round(filteredTotal)
+                Math.round(filteredTotal),
+                timeSeries
         );
     }
 

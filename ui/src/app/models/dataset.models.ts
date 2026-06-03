@@ -46,6 +46,21 @@ export interface StateMetric {
   year: string;
 }
 
+export interface StateTimeSeriesLine {
+  state: string;
+  stateCode: string;
+  values: number[];
+}
+
+/** Multi-year values per state — powers the explorer line-chart widget. */
+export interface StateTimeSeries {
+  years: number[];
+  lines: StateTimeSeriesLine[];
+  unit: string;
+}
+
+export const STATE_TIME_SERIES_MIN_YEARS = 5;
+
 export interface DatasetDataResponse {
   resourceId: string;
   title: string;
@@ -60,6 +75,7 @@ export interface DatasetDataResponse {
   syncStatus: string;
   cachedAt: string | null;
   recordsCached: number;
+  stateTimeSeries?: StateTimeSeries | null;
 }
 
 export interface DatasetSyncStatus {

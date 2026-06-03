@@ -16,5 +16,6 @@ public record DatasetDataResponse(
         List<Map<String, String>> records,
         String syncStatus,
         String cachedAt,
-        long recordsCached
+        long recordsCached,
+        StateTimeSeries stateTimeSeries
 ) {}

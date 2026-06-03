@@ -83,7 +83,7 @@
                 (removeFilter)="removeCrossFilter($event)"
                 (clearAll)="clearCrossFilters()" />
             }
-            <div class="viz-dashboard">
+            <div class="viz-dashboard" [class.viz-has-line-chart]="dashboardHasLineChart()">
               @if (loading) {
                 <p class="muted center dashboard-loading">Loading visualizations…</p>
               } @else if (error) {
@@ -117,6 +117,19 @@
                     (stateClick)="onMapStateClick($event)" />
                 </article>
 
+                @if (showStateTimeSeries()) {
+                  <article class="dashboard-widget widget-line-chart">
+                    <header class="widget-header">{{ lineChartTitle() }}</header>
+                    <div class="widget-body widget-chart-body">
+                      <app-state-multi-line-chart
+                        [series]="stateTimeSeriesForDisplay()"
+                        [selectedState]="crossFilterSelectedState()"
+                        [dimUnselected]="mapDimUnselected()"
+                        (stateClick)="onMapStateClick($event)" />
+                    </div>
+                  </article>
+                }
+
                 @for (slot of visualizationSlots(); track slot.dimensionId) {
                   @switch (slot.chartType) {
                     @case ('bar-horizontal') {
@@ -124,19 +137,13 @@
                         <header class="widget-header">{{ slot.label }}</header>
                         <div class="widget-body widget-chart-body">
                           @if (slotBarItems(slot).length) {
-                            <app-bar-chart
-                              orientation="horizontal"
-                              [staticInfoPanel]="true"
-                              infoPanelAnchor="bottom-right"
-                              [summaryTitle]="'All ' + slot.label.toLowerCase()"
+                            <app-dimension-rank-list
                               [items]="slotBarItems(slot)"
                               [selectedIds]="dimensionBarSelectedIds(slot.dimensionId)"
                               [dimmedIds]="dimensionBarDimmedIds(slot.dimensionId)"
                               [unit]="stateMetrics[0]?.unit ?? 'records'"
                               [total]="slotTotal(slot)"
-                              [datasetTitle]="datasetTitleLabel()"
-                              [datasetCategory]="datasetCategoryLabel()"
-                              (barClick)="onSlotItemClick(slot, $event)" />
+                              (itemClick)="onSlotItemClick(slot, $event)" />
                           } @else {
                             <p class="muted widget-empty">No breakdown available for {{ slot.label.toLowerCase() }}.</p>
                           }

@@ -84,7 +84,8 @@ public class DatasetDataService {
                 response.records(),
                 response.syncStatus(),
                 response.cachedAt(),
-                response.recordsCached()
+                response.recordsCached(),
+                response.stateTimeSeries()
         );
     }
 
