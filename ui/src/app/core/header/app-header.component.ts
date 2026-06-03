@@ -26,6 +26,11 @@ export class AppHeaderComponent implements OnInit {
       routerLink: '/'
     },
     {
+      label: 'Data Ingestion',
+      icon: 'pi pi-download',
+      routerLink: '/ingestion'
+    },
+    {
       label: 'Data Portal',
       icon: 'pi pi-external-link',
       url: 'https://data.gov.in',

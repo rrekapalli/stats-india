@@ -11,6 +11,7 @@ import { ExplorerFilterChip } from './explorer-cross-filter';
 })
 export class ExplorerFilterChipsComponent {
   @Input() filters: readonly ExplorerFilterChip[] = [];
+  @Input() applying = false;
   @Output() removeFilter = new EventEmitter<ExplorerFilterChip>();
   @Output() clearAll = new EventEmitter<void>();
 

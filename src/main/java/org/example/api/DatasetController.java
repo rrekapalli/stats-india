@@ -1,6 +1,7 @@
 package org.example.api;
 
 import org.example.dto.DatasetDataResponse;
+import org.example.dto.DatasetFilter;
 import org.example.dto.DatasetSummary;
 import org.example.dto.DatasetSyncStatus;
 import org.example.dto.DimensionGroup;
@@ -56,7 +57,7 @@ public class DatasetController {
     @GetMapping("/{id}/state-metrics")
     public List<StateMetric> getStateMetrics(@PathVariable String id) {
         if (datasetDataService.supportsLiveData(id)) {
-            return datasetDataService.getDataset(id, 0, 0, false).stateMetrics();
+            return datasetDataService.getExploreSummary(id).stateMetrics();
         }
         try {
             return catalogService.getStateMetrics(id);
@@ -85,17 +86,62 @@ public class DatasetController {
     }
 
     /**
-     * Cached dataset rows and aggregates (SQLite). Portal sync runs in the background when stale.
+     * Explorer dashboard: read pre-aggregated metrics from the local SQLite cache only.
+     */
+    @GetMapping("/{id}/explore")
+    public DatasetDataResponse getExploreSummary(@PathVariable String id) {
+        try {
+            return datasetDataService.getExploreSummary(id);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
+    }
+
+    /**
+     * Explorer cross-filter: scan cached rows and return filtered aggregates (read-only).
+     */
+    @GetMapping("/{id}/explore/filter")
+    public DatasetDataResponse getExploreFiltered(
+            @PathVariable String id,
+            @RequestParam List<String> filter
+    ) {
+        try {
+            return datasetDataService.getExploreFiltered(id, parseFilters(filter));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
+    }
+
+    /**
+     * Explorer data tab: paginated rows from the local SQLite cache only.
+     */
+    @GetMapping("/{id}/explore/records")
+    public DatasetDataResponse getExploreRecords(
+            @PathVariable String id,
+            @RequestParam(defaultValue = "0") int offset,
+            @RequestParam(defaultValue = "25") int limit
+    ) {
+        try {
+            return datasetDataService.getExploreRecords(id, offset, limit);
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
+        }
+    }
+
+    /**
+     * Full dataset API (records + aggregates). Reserved for Data Ingestion / admin use.
      */
     @GetMapping("/{id}/data")
     public DatasetDataResponse getDatasetData(
             @PathVariable String id,
             @RequestParam(defaultValue = "0") int offset,
             @RequestParam(defaultValue = "1000") int limit,
-            @RequestParam(defaultValue = "true") boolean includeRecords
+            @RequestParam(defaultValue = "true") boolean includeRecords,
+            @RequestParam(required = false) List<String> filter
     ) {
         try {
-            return datasetDataService.getDataset(id, offset, limit, includeRecords);
+            List<DatasetFilter> filters = parseFilters(filter);
+            return datasetDataService.getDataset(id, offset, limit, includeRecords, filters);
         } catch (IllegalArgumentException ex) {
             if (ex.getMessage() != null && ex.getMessage().startsWith("No live data provider")) {
                 throw new ResponseStatusException(HttpStatus.NOT_FOUND, ex.getMessage());
@@ -104,5 +150,15 @@ public class DatasetController {
         } catch (IllegalStateException ex) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
         }
+    }
+
+    private static List<DatasetFilter> parseFilters(List<String> raw) {
+        if (raw == null || raw.isEmpty()) {
+            return List.of();
+        }
+        return raw.stream()
+                .map(DatasetFilter::parse)
+                .filter(java.util.Objects::nonNull)
+                .toList();
     }
 }

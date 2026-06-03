@@ -98,9 +98,13 @@
 
 .empty-state-content {
   display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.35rem;
   min-width: 0;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .empty-state-title {
@@ -108,10 +112,25 @@
   font-weight: 700;
   font-size: 0.75rem;
   color: var(--p-surface-700, #334155);
+  flex-shrink: 0;
+}
+
+.empty-state-separator {
+  color: var(--p-surface-500, #64748b);
+  flex-shrink: 0;
 }
 
 .empty-state-description {
   margin: 0;
   font-size: 0.72rem;
   color: var(--p-surface-600, #64748b);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.filter-applying-inline {
+  font-size: 0.72rem;
+  color: var(--p-primary-600, #2563eb);
+  white-space: nowrap;
+  margin-right: 0.35rem;
 }

@@ -82,17 +82,140 @@ public class McaCompanyMasterDatasetService {
         this.cacheRepository = cacheRepository;
     }
 
-    public DatasetDataResponse getFromCache(int offset, int limit, boolean includeRecords) {
+    public DatasetDataResponse getExploreSummary() {
         Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
         if (metaOpt.isEmpty()) {
             return emptyResponse(DatasetFetchStatus.MISSING.name(), null, 0);
         }
         DatasetCacheMeta meta = metaOpt.get();
         Map<String, Map<String, Integer>> aggregates = cacheRepository.loadAggregates(RESOURCE_ID);
+        return buildResponse(meta, aggregates, List.of(), 0, 0, null, false);
+    }
+
+    public DatasetDataResponse getExploreFiltered(List<org.example.dto.DatasetFilter> filters) {
+        Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
+        if (metaOpt.isEmpty()) {
+            return emptyResponse(DatasetFetchStatus.MISSING.name(), null, 0);
+        }
+        DatasetCacheMeta meta = metaOpt.get();
+        if (filters == null || filters.isEmpty()) {
+            return getExploreSummary();
+        }
+        FilteredAggregateResult filtered = computeFilteredAggregates(filters);
+        return buildResponse(meta, filtered.aggregates(), List.of(), 0, 0, filtered.matchCount(), false);
+    }
+
+    /** Paginated row read for the Data tab — meta + page of records only (no aggregate rebuild). */
+    public DatasetDataResponse getExploreRecords(int offset, int limit) {
+        Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
+        if (metaOpt.isEmpty()) {
+            return emptyResponse(DatasetFetchStatus.MISSING.name(), null, 0);
+        }
+        DatasetCacheMeta meta = metaOpt.get();
+        int safeLimit = Math.max(0, Math.min(limit, 500));
+        List<Map<String, String>> records = safeLimit > 0
+                ? cacheRepository.loadRecords(RESOURCE_ID, offset, safeLimit)
+                : List.of();
+        return buildRecordsPageResponse(meta, records, offset, safeLimit);
+    }
+
+    public DatasetDataResponse getFromCache(int offset, int limit, boolean includeRecords) {
+        return getFromCache(offset, limit, includeRecords, List.of());
+    }
+
+    public DatasetDataResponse getFromCache(
+            int offset,
+            int limit,
+            boolean includeRecords,
+            List<org.example.dto.DatasetFilter> filters
+    ) {
+        Optional<DatasetCacheMeta> metaOpt = cacheRepository.findMeta(RESOURCE_ID);
+        if (metaOpt.isEmpty()) {
+            return emptyResponse(DatasetFetchStatus.MISSING.name(), null, 0);
+        }
+        DatasetCacheMeta meta = metaOpt.get();
+        Map<String, Map<String, Integer>> aggregates;
+        Long filteredCount = null;
+        if (filters != null && !filters.isEmpty()) {
+            FilteredAggregateResult filtered = computeFilteredAggregates(filters);
+            aggregates = filtered.aggregates();
+            filteredCount = filtered.matchCount();
+        } else {
+            aggregates = cacheRepository.loadAggregates(RESOURCE_ID);
+        }
         List<Map<String, String>> records = includeRecords && limit > 0
                 ? cacheRepository.loadRecords(RESOURCE_ID, offset, limit)
                 : List.of();
-        return buildResponse(meta, aggregates, records, offset, limit);
+        return buildResponse(meta, aggregates, records, offset, limit, filteredCount, false);
+    }
+
+    private record FilteredAggregateResult(Map<String, Map<String, Integer>> aggregates, long matchCount) {}
+
+    private FilteredAggregateResult computeFilteredAggregates(List<org.example.dto.DatasetFilter> filters) {
+        Map<String, Integer> byState = new LinkedHashMap<>();
+        Map<String, Integer> byStatus = new LinkedHashMap<>();
+        Map<String, Integer> byIndustry = new LinkedHashMap<>();
+        Map<String, Integer> byCategory = new LinkedHashMap<>();
+        long[] matchCount = {0L};
+
+        cacheRepository.forEachRecord(RESOURCE_ID, row -> {
+            if (!matchesAllFilters(row, filters)) {
+                return;
+            }
+            matchCount[0]++;
+            mergeRowIntoAggregates(row, byState, byStatus, byIndustry, byCategory);
+        });
+
+        Map<String, Map<String, Integer>> dimensions = new LinkedHashMap<>();
+        dimensions.put("state", byState);
+        dimensions.put("status", byStatus);
+        dimensions.put("industry", byIndustry);
+        dimensions.put("category", byCategory);
+        return new FilteredAggregateResult(dimensions, matchCount[0]);
+    }
+
+    private boolean matchesAllFilters(Map<String, String> row, List<org.example.dto.DatasetFilter> filters) {
+        for (org.example.dto.DatasetFilter filter : filters) {
+            if (!matchesFilter(row, filter)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean matchesFilter(Map<String, String> row, org.example.dto.DatasetFilter filter) {
+        return switch (filter.dimension()) {
+            case "state" -> filter.value().equals(normalizeState(row.get("companyStateCode")));
+            case "company-status" -> filter.value().equals(normalizeLabel(row.get("companyStatus")));
+            case "industry" -> filter.value().equals(normalizeLabel(row.get("companyIndustrialClassification")));
+            case "category" -> filter.value().equals(normalizeLabel(row.get("companyCategory")));
+            default -> true;
+        };
+    }
+
+    private void mergeRowIntoAggregates(
+            Map<String, String> row,
+            Map<String, Integer> byState,
+            Map<String, Integer> byStatus,
+            Map<String, Integer> byIndustry,
+            Map<String, Integer> byCategory
+    ) {
+        String state = normalizeState(row.get("companyStateCode"));
+        if (state != null) {
+            byState.merge(state, 1, Integer::sum);
+        }
+        String status = normalizeLabel(row.get("companyStatus"));
+        if (status != null) {
+            byStatus.merge(status, 1, Integer::sum);
+        }
+        String industry = normalizeLabel(row.get("companyIndustrialClassification"));
+        if (industry != null) {
+            byIndustry.merge(industry, 1, Integer::sum);
+        }
+        String category = normalizeLabel(row.get("companyCategory"));
+        if (category != null) {
+            byCategory.merge(category, 1, Integer::sum);
+        }
     }
 
     public List<Map<String, String>> parseRecords(JsonNode payload) {
@@ -113,22 +236,7 @@ public class McaCompanyMasterDatasetService {
         Map<String, Integer> byCategory = new LinkedHashMap<>();
 
         for (Map<String, String> row : records) {
-            String state = normalizeState(row.get("companyStateCode"));
-            if (state != null) {
-                byState.merge(state, 1, Integer::sum);
-            }
-            String status = normalizeLabel(row.get("companyStatus"));
-            if (status != null) {
-                byStatus.merge(status, 1, Integer::sum);
-            }
-            String industry = normalizeLabel(row.get("companyIndustrialClassification"));
-            if (industry != null) {
-                byIndustry.merge(industry, 1, Integer::sum);
-            }
-            String category = normalizeLabel(row.get("companyCategory"));
-            if (category != null) {
-                byCategory.merge(category, 1, Integer::sum);
-            }
+            mergeRowIntoAggregates(row, byState, byStatus, byIndustry, byCategory);
         }
 
         Map<String, Map<String, Integer>> dimensions = new LinkedHashMap<>();
@@ -146,6 +254,18 @@ public class McaCompanyMasterDatasetService {
             int offset,
             int limit
     ) {
+        return buildResponse(meta, aggregates, records, offset, limit, null, false);
+    }
+
+    private DatasetDataResponse buildResponse(
+            DatasetCacheMeta meta,
+            Map<String, Map<String, Integer>> aggregates,
+            List<Map<String, String>> records,
+            int offset,
+            int limit,
+            Long filteredCount,
+            boolean skipCountRecords
+    ) {
         Map<String, Integer> byState = aggregates.getOrDefault("state", Map.of());
         Map<String, Integer> byStatus = aggregates.getOrDefault("status", Map.of());
         Map<String, Integer> byIndustry = aggregates.getOrDefault("industry", Map.of());
@@ -157,11 +277,13 @@ public class McaCompanyMasterDatasetService {
                 .toList();
 
         long cachedTotal = meta.cachedRecords();
-        if (cachedTotal <= 0 && meta.status() == DatasetFetchStatus.READY) {
+        if (!skipCountRecords && cachedTotal <= 0 && meta.status() == DatasetFetchStatus.READY) {
             cachedTotal = cacheRepository.countRecords(RESOURCE_ID);
         }
+        long displayCount = filteredCount != null ? filteredCount : cachedTotal;
+        boolean filtered = filteredCount != null;
         List<DimensionGroup> dimensionGroups = List.of(
-                summaryGroup(meta.portalTotal(), cachedTotal, byState.size(), meta.fetchedAt()),
+                summaryGroup(meta.portalTotal(), displayCount, byState.size(), meta.fetchedAt(), filtered),
                 countGroup("company-status", "Company status", byStatus),
                 countGroup("industry", "Industrial classification", topEntries(byIndustry, 12)),
                 countGroup("category", "Company category", byCategory),
@@ -181,7 +303,30 @@ public class McaCompanyMasterDatasetService {
                 records,
                 meta.status().name(),
                 formatInstant(meta.fetchedAt()),
-                cachedTotal
+                displayCount
+        );
+    }
+
+    private DatasetDataResponse buildRecordsPageResponse(
+            DatasetCacheMeta meta,
+            List<Map<String, String>> records,
+            int offset,
+            int limit
+    ) {
+        return new DatasetDataResponse(
+                RESOURCE_ID,
+                meta.title(),
+                meta.description(),
+                meta.portalTotal(),
+                records.size(),
+                offset,
+                limit,
+                List.of(),
+                List.of(),
+                records,
+                meta.status().name(),
+                formatInstant(meta.fetchedAt()),
+                meta.cachedRecords()
         );
     }
 
@@ -203,10 +348,21 @@ public class McaCompanyMasterDatasetService {
         );
     }
 
-    private DimensionGroup summaryGroup(long portalTotal, long cachedRecords, int statesRepresented, Instant cachedAt) {
+    private DimensionGroup summaryGroup(
+            long portalTotal,
+            long cachedRecords,
+            int statesRepresented,
+            Instant cachedAt,
+            boolean filtered
+    ) {
         List<DimensionItem> items = new ArrayList<>();
         items.add(item("total-records", "Total records (portal)", String.valueOf(portalTotal), "count"));
-        items.add(item("cached-records", "Records cached locally", String.valueOf(cachedRecords), "count"));
+        items.add(item(
+                "cached-records",
+                filtered ? "Records matching filters" : "Records cached locally",
+                String.valueOf(cachedRecords),
+                "count"
+        ));
         items.add(item("states", "States / UTs represented", String.valueOf(statesRepresented), "count"));
         if (cachedAt != null) {
             items.add(item("cached-at", "Last synced", cachedAt.toString(), "timestamp"));

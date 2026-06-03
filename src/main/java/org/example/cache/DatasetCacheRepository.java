@@ -244,6 +244,22 @@ public class DatasetCacheRepository {
         );
     }
 
+    public void forEachRecord(String resourceId, java.util.function.Consumer<Map<String, String>> consumer) {
+        jdbc.query(
+                """
+                        SELECT data_json FROM dataset_record
+                        WHERE resource_id = ?
+                        ORDER BY row_index
+                        """,
+                rs -> {
+                    while (rs.next()) {
+                        consumer.accept(fromJson(rs.getString("data_json")));
+                    }
+                },
+                resourceId
+        );
+    }
+
     public long countRecords(String resourceId) {
         Long count = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM dataset_record WHERE resource_id = ?",

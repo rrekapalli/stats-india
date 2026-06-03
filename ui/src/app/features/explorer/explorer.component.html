@@ -76,16 +76,22 @@
         <p-tabpanels>
           <p-tabpanel value="visualization">
             <div class="viz-tab-shell">
-            @if (isLiveDataset() && isSyncInProgress()) {
+            @if (isLiveDataset() && (isSyncInProgress() || cacheIncomplete())) {
               <p class="sync-banner muted">
-                Syncing full dataset from data.gov.in…
+                @if (isSyncInProgress()) {
+                  Local cache sync in progress —
+                } @else {
+                  Local cache is partial —
+                }
                 {{ recordsCached | number }} / {{ liveTotalRecords | number }} records
-                ({{ syncProgressPercent() }}%)
+                ({{ syncProgressPercent() }}%).
+                Use <a routerLink="/ingestion">Data Ingestion</a> to refresh from data.gov.in.
               </p>
             }
             @if (isLiveDataset()) {
               <app-explorer-filter-chips
                 [filters]="activeFilterChips()"
+                [applying]="filterApplying"
                 (removeFilter)="removeCrossFilter($event)"
                 (clearAll)="clearCrossFilters()" />
             }

@@ -40,16 +40,18 @@ interface MapLocation {
       </div>
       <div class="map-viewport" #viewport>
         <div class="map-info-panel" [innerHTML]="infoPanelHtml"></div>
+        <div class="map-legend map-legend-overlay" aria-hidden="true">
+          <span class="legend-bound">{{ legendMin | number:'1.0-0' }}</span>
+          <div class="legend-bar"></div>
+          <span class="legend-bound">{{ legendMax | number:'1.0-0' }}</span>
+          @if (unit) {
+            <span class="legend-unit">{{ unit }}</span>
+          }
+        </div>
         <svg #svg [attr.viewBox]="mapViewBox" preserveAspectRatio="xMinYMid meet" role="img"
              aria-label="Zoomable India state map">
           <g #zoomLayer></g>
         </svg>
-      </div>
-      <div class="map-legend">
-        <span>{{ legendMin | number:'1.0-1' }}</span>
-        <div class="legend-bar"></div>
-        <span>{{ legendMax | number:'1.0-1' }}</span>
-        <span class="legend-unit">{{ unit }}</span>
       </div>
     </div>
   `,
@@ -74,7 +76,12 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   @ViewChild('zoomLayer', { static: true }) zoomLayerRef!: ElementRef<SVGGElement>;
   @ViewChild('viewport', { static: true }) viewportRef!: ElementRef<HTMLDivElement>;
 
-  readonly mapViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, 0.05, 0.15);
+  readonly mapViewBox = buildMapViewBoxWithMargins(indiaMap.viewBox as string, {
+    left: 0.05,
+    right: 0.15,
+    top: 0.05,
+    bottom: 0.05
+  });
   legendMin = 0;
   legendMax = 100;
 
@@ -281,13 +288,18 @@ export class IndiaStateMapComponent implements AfterViewInit, OnChanges, OnDestr
   }
 }
 
-function buildMapViewBoxWithMargins(raw: string, leftRatio: number, rightRatio: number): string {
+function buildMapViewBoxWithMargins(
+  raw: string,
+  margins: { left?: number; right?: number; top?: number; bottom?: number }
+): string {
   const parts = raw.trim().split(/\s+/).map(Number);
   if (parts.length !== 4 || parts.some(n => !Number.isFinite(n))) {
     return raw;
   }
   const [x, y, width, height] = parts;
-  const leftPad = width * leftRatio;
-  const rightPad = width * rightRatio;
-  return `${x - leftPad} ${y} ${width + leftPad + rightPad} ${height}`;
+  const leftPad = width * (margins.left ?? 0);
+  const rightPad = width * (margins.right ?? 0);
+  const topPad = height * (margins.top ?? 0);
+  const bottomPad = height * (margins.bottom ?? 0);
+  return `${x - leftPad} ${y - topPad} ${width + leftPad + rightPad} ${height + topPad + bottomPad}`;
 }

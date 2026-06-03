@@ -16,6 +16,9 @@
       }
     </div>
     <div class="filter-actions">
+      @if (applying) {
+        <span class="filter-applying-inline">Applying…</span>
+      }
       <button
         type="button"
         class="chip clear-all-btn"
@@ -28,10 +31,14 @@
 } @else {
   <div class="filter-component empty-state">
     <div class="empty-state-content">
-      <p class="empty-state-title">No filters applied</p>
-      <p class="empty-state-description">
+      <span class="empty-state-title">No filters applied</span>
+      <span class="empty-state-separator" aria-hidden="true">·</span>
+      <span class="empty-state-description">
         Click a state on the map, a bar, or a pie slice to filter all charts together.
-      </p>
+      </span>
+      @if (applying) {
+        <span class="filter-applying-inline">Applying…</span>
+      }
     </div>
   </div>
 }

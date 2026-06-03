@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import {
   DatasetDataResponse,
@@ -35,22 +35,35 @@ export class StatsApiService {
     return this.http.get<StateMetric[]>(`${this.base}/datasets/${datasetId}/state-metrics`);
   }
 
-  /** Aggregates + meta only — no row payload (used for dashboard summary). */
-  getDatasetSummary(datasetId: string): Observable<DatasetDataResponse> {
-    return this.getDatasetData(datasetId, 0, 0, false);
+  /** Explorer: pre-aggregated metrics from local SQLite cache (read-only, fast). */
+  getExploreSummary(datasetId: string): Observable<DatasetDataResponse> {
+    return this.http.get<DatasetDataResponse>(`${this.base}/datasets/${datasetId}/explore`);
   }
 
-  getDatasetData(
+  /** Explorer cross-filter: filtered aggregates from cached rows. */
+  getExploreFiltered(
     datasetId: string,
-    offset = 0,
-    limit = 1000,
-    includeRecords = true
+    filters: ReadonlyArray<{ filterColumn: string; value: string }>
   ): Observable<DatasetDataResponse> {
-    return this.http.get<DatasetDataResponse>(`${this.base}/datasets/${datasetId}/data`, {
+    let params = new HttpParams();
+    for (const chip of filters) {
+      params = params.append('filter', `${chip.filterColumn}:${chip.value}`);
+    }
+    return this.http.get<DatasetDataResponse>(`${this.base}/datasets/${datasetId}/explore/filter`, {
+      params
+    });
+  }
+
+  /** Explorer data tab: paginated rows from local SQLite cache. */
+  getExploreRecords(
+    datasetId: string,
+    offset: number,
+    limit: number
+  ): Observable<DatasetDataResponse> {
+    return this.http.get<DatasetDataResponse>(`${this.base}/datasets/${datasetId}/explore/records`, {
       params: {
         offset: String(offset),
-        limit: String(limit),
-        includeRecords: String(includeRecords)
+        limit: String(limit)
       }
     });
   }

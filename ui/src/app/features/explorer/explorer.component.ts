@@ -1,5 +1,6 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { RouterModule } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AccordionModule } from 'primeng/accordion';
 import { TabsModule } from 'primeng/tabs';
@@ -22,13 +23,7 @@ import { BarChartComponent, BarChartItem } from './bar-chart/bar-chart.component
 import { PieChartComponent, PieChartItem } from './pie-chart/pie-chart.component';
 import { ExplorerCrossFilter, ExplorerFilterChip } from './explorer-cross-filter';
 import { ExplorerFilterChipsComponent } from './explorer-filter-chips.component';
-import {
-  aggregateMcaRecords,
-  dimensionLabelForFilterColumn,
-  filterMcaRecords
-} from './explorer-mca-filter.util';
-import { Observable, concatMap, from, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { dimensionLabelForFilterColumn } from './explorer-mca-filter.util';
 import { INDIA_STATE_NAMES, normalizeStateName } from './india-state-names';
 import {
   buildMetricTooltipHtml,
@@ -60,6 +55,7 @@ interface GlanceTile {
   standalone: true,
   imports: [
     CommonModule,
+    RouterModule,
     FormsModule,
     AccordionModule,
     TabsModule,
@@ -77,7 +73,7 @@ interface GlanceTile {
   styleUrl: './explorer.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class ExplorerComponent implements OnInit, OnDestroy {
+export class ExplorerComponent implements OnInit {
   private readonly api = inject(StatsApiService);
   private readonly cdr = inject(ChangeDetectorRef);
 
@@ -109,15 +105,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   private unfilteredStateMetrics: StateMetric[] = [];
   private unfilteredDimensions: DimensionGroup[] = [];
-  private liveRecords: Record<string, string>[] = [];
-  private liveRecordsLoading = false;
-  private liveRecordsLoadTarget = 0;
-
-  private syncPollTimer: ReturnType<typeof setInterval> | null = null;
-  private syncPollTicks = 0;
-  private readonly recordPageSize = 10_000;
-  /** Cap client-side cross-filter loading so summary reads are not starved. */
-  private readonly maxCrossFilterRecords = 250_000;
+  filterApplying = false;
 
   readonly categories = ['Companies', 'Demographics', 'Agriculture', 'Health', 'Education', 'Energy'];
 
@@ -141,26 +129,19 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     });
   }
 
-  ngOnDestroy(): void {
-    this.stopSyncPolling();
-  }
-
   selectDataset(dataset: DatasetSummary): void {
     this.selectedDataset = dataset;
     this.error = null;
     this.loading = true;
     this.dataFirst = 0;
     this.datasetRecords = [];
-    this.liveRecords = [];
-    this.liveRecordsLoadTarget = 0;
     this.unfilteredStateMetrics = [];
     this.unfilteredDimensions = [];
     this.crossFilter.clear();
-    this.stopSyncPolling();
     this.cdr.markForCheck();
 
     if (dataset.id === MCA_COMPANY_MASTER_RESOURCE_ID) {
-      this.loadLiveDatasetSummary(dataset.id);
+      this.loadExploreSummary(dataset.id);
       return;
     }
 
@@ -186,18 +167,16 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     });
   }
 
-  private loadLiveDatasetSummary(resourceId: string): void {
-    this.api.getDatasetSummary(resourceId).subscribe({
+  /** Load visualization metrics from the local SQLite cache (read-only). */
+  private loadExploreSummary(resourceId: string): void {
+    this.api.getExploreSummary(resourceId).subscribe({
       next: data => {
-        this.applyLiveDatasetResponse(data);
+        this.applyExploreResponse(data);
         this.loading = false;
-        if (this.isSyncInProgress()) {
-          this.startSyncPolling(resourceId);
-        }
         this.cdr.markForCheck();
       },
       error: err => {
-        const message = err?.error?.message ?? err?.message ?? 'Unable to load dataset from cache.';
+        const message = err?.error?.message ?? err?.message ?? 'Unable to load cached dataset.';
         this.error = message;
         this.loading = false;
         this.cdr.markForCheck();
@@ -214,7 +193,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.dataLoading = true;
     this.cdr.markForCheck();
 
-    this.api.getDatasetData(this.selectedDataset.id, this.dataFirst, this.dataRows, true).subscribe({
+    this.api.getExploreRecords(this.selectedDataset.id, this.dataFirst, this.dataRows).subscribe({
       next: data => {
         this.datasetRecords = data.records;
         this.recordsCached = data.recordsCached;
@@ -242,7 +221,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     }
   }
 
-  private applyLiveDatasetResponse(data: DatasetDataResponse): void {
+  private applyExploreResponse(data: DatasetDataResponse): void {
     this.unfilteredStateMetrics = data.stateMetrics;
     this.unfilteredDimensions = data.dimensionGroups;
     this.liveTotalRecords = data.totalRecords;
@@ -250,7 +229,7 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.syncStatus = data.syncStatus;
     this.cachedAt = data.cachedAt;
     if (this.crossFilter.active) {
-      this.applyCrossFiltersToVisualizations();
+      this.applyCrossFiltersFromServer();
     } else {
       this.dimensions = data.dimensionGroups;
       this.stateMetrics = data.stateMetrics;
@@ -258,98 +237,38 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     this.updateAccordionPanels(this.dimensions);
   }
 
-  /** Lightweight refresh of aggregates/meta (no records). */
-  private refreshLiveDatasetSummary(resourceId: string): void {
-    this.api.getDatasetSummary(resourceId).subscribe({
-      next: data => {
-        this.applyLiveDatasetResponse(data);
-        if (this.crossFilter.active && this.liveRecords.length) {
-          this.applyCrossFiltersToVisualizations();
-        }
-        this.cdr.markForCheck();
-      }
-    });
-  }
-
-  private updateAccordionPanels(dimensions: DimensionGroup[]): void {
-    const chartable = chartableDimensionGroups(dimensions);
-    this.accordionPanels = ['summary', ...chartable.map(g => g.id).slice(0, 4)];
-  }
-
-  private ensureLiveRecordsLoaded(): void {
-    if (!this.isLiveDataset() || !this.crossFilter.active) {
-      return;
-    }
-    const target = Math.min(this.recordsCached, this.maxCrossFilterRecords);
-    if (!target) {
-      return;
-    }
-    if (this.liveRecordsLoading && this.liveRecordsLoadTarget === target) {
-      return;
-    }
-    if (this.liveRecords.length >= target) {
-      this.applyCrossFiltersToVisualizations();
-      return;
-    }
-
-    this.liveRecordsLoading = true;
-    this.liveRecordsLoadTarget = target;
-    this.liveRecords = [];
-    const resourceId = this.selectedDataset!.id;
-    const offsets: number[] = [];
-    for (let offset = 0; offset < target; offset += this.recordPageSize) {
-      offsets.push(offset);
-    }
-
-    from(offsets)
-      .pipe(
-        concatMap(offset => {
-          const limit = Math.min(this.recordPageSize, target - offset);
-          return this.api.getDatasetData(resourceId, offset, limit, true).pipe(
-            catchError(() => of({ records: [] as Record<string, string>[] }))
-          );
-        })
-      )
-      .subscribe({
-        next: response => {
-          if (response.records.length) {
-            this.liveRecords = this.liveRecords.concat(response.records);
-            this.applyCrossFiltersToVisualizations();
-            this.cdr.markForCheck();
-          }
-        },
-        complete: () => {
-          this.liveRecordsLoading = false;
-          this.applyCrossFiltersToVisualizations();
-          this.cdr.markForCheck();
-        },
-        error: () => {
-          this.liveRecordsLoading = false;
-          this.cdr.markForCheck();
-        }
-      });
-  }
-
-  private applyCrossFiltersToVisualizations(): void {
+  private applyCrossFiltersFromServer(): void {
     if (!this.crossFilter.active) {
       this.stateMetrics = this.unfilteredStateMetrics;
       this.dimensions = this.unfilteredDimensions;
       this.updateAccordionPanels(this.dimensions);
       return;
     }
-    if (!this.isLiveDataset() || !this.liveRecords.length) {
+    if (!this.isLiveDataset() || !this.selectedDataset) {
       return;
     }
-    const filtered = filterMcaRecords(this.liveRecords, this.crossFilter.getFilters());
-    const aggregated = aggregateMcaRecords(filtered, {
-      portalTotal: this.liveTotalRecords,
-      recordsCached: this.recordsCached,
-      filteredCount: filtered.length,
-      fetchedAt: this.cachedAt
-    });
-    this.stateMetrics = aggregated.stateMetrics;
-    this.dimensions = aggregated.dimensionGroups;
-    this.updateAccordionPanels(this.dimensions);
+    this.filterApplying = true;
+    this.cdr.markForCheck();
+    this.api
+      .getExploreFiltered(this.selectedDataset.id, this.crossFilter.getFilters())
+      .subscribe({
+        next: data => {
+          this.stateMetrics = data.stateMetrics;
+          this.dimensions = data.dimensionGroups;
+          this.filterApplying = false;
+          this.updateAccordionPanels(this.dimensions);
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.filterApplying = false;
+          this.cdr.markForCheck();
+        }
+      });
+  }
+
+  private updateAccordionPanels(dimensions: DimensionGroup[]): void {
+    const chartable = chartableDimensionGroups(dimensions);
+    this.accordionPanels = ['summary', ...chartable.map(g => g.id).slice(0, 4)];
   }
 
   activeFilterChips(): readonly ExplorerFilterChip[] {
@@ -366,14 +285,13 @@ export class ExplorerComponent implements OnInit, OnDestroy {
     if (!added) {
       return;
     }
-    this.ensureLiveRecordsLoaded();
-    this.applyCrossFiltersToVisualizations();
     this.cdr.markForCheck();
+    this.applyCrossFiltersFromServer();
   }
 
   removeCrossFilter(chip: ExplorerFilterChip): void {
     this.crossFilter.remove(chip);
-    this.applyCrossFiltersToVisualizations();
+    this.applyCrossFiltersFromServer();
     this.cdr.markForCheck();
   }
 
@@ -382,7 +300,11 @@ export class ExplorerComponent implements OnInit, OnDestroy {
   }
 
   isSyncInProgress(): boolean {
-    return this.syncStatus === 'SYNCING' || this.syncStatus === 'MISSING';
+    return this.syncStatus === 'SYNCING';
+  }
+
+  cacheIncomplete(): boolean {
+    return this.isLiveDataset() && this.liveTotalRecords > 0 && this.recordsCached < this.liveTotalRecords;
   }
 
   syncProgressPercent(): number {
@@ -390,45 +312,6 @@ export class ExplorerComponent implements OnInit, OnDestroy {
       return 0;
     }
     return Math.min(100, Math.round((this.recordsCached / this.liveTotalRecords) * 100));
-  }
-
-  private startSyncPolling(resourceId: string): void {
-    this.stopSyncPolling();
-    this.syncPollTicks = 0;
-    this.syncPollTimer = setInterval(() => {
-      this.api.getSyncStatus(resourceId).subscribe({
-        next: status => {
-          this.syncPollTicks++;
-          const prevCached = this.recordsCached;
-          this.syncStatus = status.status;
-          this.recordsCached = status.cachedRecords;
-          this.liveTotalRecords = status.portalTotal;
-          this.cachedAt = status.fetchedAt;
-
-          const syncDone = status.status !== 'SYNCING' && status.status !== 'MISSING';
-          const cacheGrew = status.cachedRecords > prevCached;
-          if (syncDone || cacheGrew || this.syncPollTicks % 6 === 0) {
-            this.refreshLiveDatasetSummary(resourceId);
-          }
-
-          if (syncDone) {
-            this.stopSyncPolling();
-            if (this.crossFilter.active) {
-              this.liveRecords = [];
-              this.ensureLiveRecordsLoaded();
-            }
-          }
-          this.cdr.markForCheck();
-        }
-      });
-    }, 5000);
-  }
-
-  private stopSyncPolling(): void {
-    if (this.syncPollTimer) {
-      clearInterval(this.syncPollTimer);
-      this.syncPollTimer = null;
-    }
   }
 
   toggleLeftDrawer(drawer: Exclude<LeftDrawer, null>): void {
@@ -551,7 +434,9 @@ export class ExplorerComponent implements OnInit, OnDestroy {
 
   clearCrossFilters(): void {
     this.crossFilter.clear();
-    this.applyCrossFiltersToVisualizations();
+    this.stateMetrics = this.unfilteredStateMetrics;
+    this.dimensions = this.unfilteredDimensions;
+    this.updateAccordionPanels(this.dimensions);
     this.cdr.markForCheck();
   }
 
