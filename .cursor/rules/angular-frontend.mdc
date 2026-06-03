@@ -1,0 +1,30 @@
+---
+description: Angular UI conventions for stats-india
+globs: ui/**/*.ts,ui/**/*.html,ui/**/*.css,ui/**/*.scss
+alwaysApply: false
+---
+
+# Angular frontend
+
+## Stack
+
+- **Angular 21** standalone components, `@angular/build`
+- **PrimeNG** + Aura theme (`providePrimeNG` in `app.config.ts`)
+- **d3** + `@svg-maps/india` for map; libraries from `ui/projects/`
+
+## Conventions
+
+- Dev: `cd ui && npm start` — proxy `ui/proxy.conf.json` → `:8080`
+- Build output: `../src/main/resources/static` (flat)
+- API client: `StatsApiService`; types in `dataset.models.ts`
+- Explorer layout: left accordions (~30%), right map/tabs (~65%), in-content nav drawers
+
+## Libraries
+
+Build before app when changing public API: `npm run build:libraries`
+
+Path aliases in `ui/tsconfig.json`: `angular-grid-layout`, `@dashboard/public-api`, `@d3-dashboards/public-api`
+
+## Output
+
+Show only changed templates/methods; reference existing models by name.

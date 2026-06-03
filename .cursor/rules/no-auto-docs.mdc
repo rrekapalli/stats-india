@@ -1,0 +1,21 @@
+---
+description: Prevent unsolicited documentation generation
+alwaysApply: true
+---
+
+# Documentation rules
+
+## Do not auto-generate unless asked
+
+- Root README, CHANGELOG, ADRs, migration guides
+- Duplicate architecture docs outside `.cursor/docs/`
+
+## When docs are requested
+
+- User-facing long docs → `Docs/` folder
+- Agent baseline → `.cursor/docs/` and `.cursor/rules/`
+- Keep minimal and actionable; no boilerplate Contributing/License sections
+
+## This project baseline
+
+The `.cursor/` folder is the intentional agent baseline (architecture, infra, domain). Update those files when making significant structural changes.

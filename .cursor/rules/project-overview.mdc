@@ -1,0 +1,29 @@
+---
+description: Stats India project overview and doc index
+alwaysApply: true
+---
+
+# Stats India
+
+Open Government Data explorer: **Angular 21 UI** + **Spring Boot API**, one **Proxmox LXC** (VMID 7001), **Tailscale** MagicDNS.
+
+## Agent entry
+
+Read `.cursor/AGENTS.md` and `.cursor/docs/` before large changes.
+
+## Key paths
+
+- UI: `ui/src/app/` — explorer is the main feature
+- API: `src/main/java/org/example/`
+- Live datasets: `service/datagov/`, `client/DataGovInClient.java`
+- Deploy: `deployment/`, secrets in `.env`
+- Static build output: `src/main/resources/static/`
+
+## Production
+
+- http://stats-india.tailce422e.ts.net/
+- MCA dataset UUID: `4dbe5667-7b6b-41d7-82af-211562424d9a`
+
+## Sibling repo
+
+`../moneytree` — shared Proxmox/Tailscale, LXC base template VMID 9001, source of UI libraries.

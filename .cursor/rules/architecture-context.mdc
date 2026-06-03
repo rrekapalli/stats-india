@@ -1,0 +1,24 @@
+---
+description: Architecture source of truth and repo map
+alwaysApply: true
+---
+
+# Architecture context
+
+## Source of truth
+
+1. Versions: `.cursor/rules/platform-versions.mdc`, `pom.xml`, `ui/package.json`
+2. Layout & API: `.cursor/docs/architecture.md`
+3. Infra: `.cursor/docs/infrastructure.md`
+4. data.gov.in: `.cursor/docs/domain-data-gov-in.md`
+
+## Stack summary
+
+Single Spring Boot JAR + nginx-served static UI on one LXC. API proxies dataset fetches to `api.data.gov.in` (JSON). Explorer: left accordions, right India map (d3).
+
+## Packages
+
+- Java: `org.example.{api,service,service.datagov,client,config,dto,web}`
+- Angular: `ui/src/app/{core,features/explorer,services,models}`
+
+When adding endpoints or features, extend existing controllers/services — no new frameworks without need.

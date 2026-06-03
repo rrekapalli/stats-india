@@ -1,0 +1,35 @@
+---
+description: Proxmox LXC, Tailscale, and deployment debugging
+alwaysApply: true
+---
+
+# Deployment context
+
+Full detail: `.cursor/docs/infrastructure.md`
+
+## Quick reference
+
+| Item | Value |
+|------|-------|
+| Proxmox host | `192.168.29.231` |
+| LXC VMID | **7001** (`stats-india`) |
+| MagicDNS | **stats-india.tailce422e.ts.net** |
+| nginx | :80 → `/var/www/stats-india` |
+| API | :8080 → `/opt/stats-india/stats-india.jar` |
+| systemd | `stats-india-api`, `nginx`, `tailscale-autojoin` |
+
+## Deploy commands
+
+```bash
+./deployment/deploy-all.sh
+./deployment/proxmox/join-tailscale.sh
+```
+
+## Health checks
+
+```bash
+curl http://stats-india.tailce422e.ts.net/api/health
+pct exec 7001 -- journalctl -u stats-india-api -n 50 --no-pager
+```
+
+Secrets: `.env` only. Config constants: `deployment/proxmox/deployment.conf`.

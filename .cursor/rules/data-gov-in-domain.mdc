@@ -1,0 +1,24 @@
+---
+description: data.gov.in integration and dataset transform patterns
+alwaysApply: true
+---
+
+# data.gov.in domain
+
+Detail: `.cursor/docs/domain-data-gov-in.md`
+
+## Rules
+
+- API key: `DATA_GOV_IN_API_KEY` in `.env` / systemd only — never in `ui/`
+- Prefer `format=json` via `DataGovInClient`
+- One **`service/datagov/*DatasetService`** per resource UUID with its own cleanup/marshalling
+- Register new datasets in `DatasetDataService` + `DatasetCatalogService`
+- Normalize state names for `@svg-maps/india` (see `McaCompanyMasterDatasetService`)
+
+## MCA reference dataset
+
+- UUID: `4dbe5667-7b6b-41d7-82af-211562424d9a`
+- Endpoint: `GET /api/datasets/{uuid}/data?offset=&limit=`
+- Frontend constant: `MCA_COMPANY_MASTER_RESOURCE_ID` in `dataset.models.ts`
+
+Sample limit (1000) ≠ portal total — document UX accordingly when changing aggregation.

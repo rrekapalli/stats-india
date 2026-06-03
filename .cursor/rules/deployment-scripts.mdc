@@ -1,0 +1,26 @@
+---
+description: Deployment shell scripts and Proxmox LXC patterns
+globs: deployment/**/*
+alwaysApply: false
+---
+
+# Deployment scripts
+
+Detail: `.cursor/docs/infrastructure.md`
+
+## Layout
+
+- `prepare-artifacts.sh` — Maven + zip static
+- `build-and-deploy.sh` — orchestrates API/UI
+- `proxmox/deploy-api.sh`, `deploy-ui.sh`, `join-tailscale.sh`
+- Shared: `proxmox/lib/{load-env.sh,proxmox-remote.sh}`
+
+## Conventions
+
+- Load secrets from repo root `.env` via `load-env.sh`
+- Remote Proxmox when `pct` not local: `PROXMOX_HOST`, `PROXMOX_PASSWORD`
+- Quote systemd `Environment="KEY=value with spaces"`
+- App dir: `/opt/stats-india`, user `stats-india`
+- `--recreate` only on first of API+UI in `build-and-deploy.sh`
+
+Match moneytree patterns in `../moneytree/deployment/proxmox/` when extending.

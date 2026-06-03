@@ -1,0 +1,9 @@
+{
+  "plugins": {
+    "cursor": {
+      "rules": {
+        "enabled": true
+      }
+    }
+  }
+}

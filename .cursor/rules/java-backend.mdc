@@ -1,0 +1,28 @@
+---
+description: Java Spring Boot API conventions
+globs: src/main/java/**/*.java,pom.xml
+alwaysApply: false
+---
+
+# Java backend
+
+## Stack
+
+- **Java 21**, **Spring Boot 3.3**, `spring-boot-starter-web`
+- Packages: `org.example.*`
+- DTOs: Java **records** in `dto/`
+
+## Conventions
+
+- REST under `/api/*`; SPA forwarding in `SpaForwardingController` (not `/api`)
+- Live external data: `DataGovInClient` + `service/datagov/*` transforms
+- Config: `application.properties` + env vars (`DATA_GOV_IN_API_KEY`)
+- RestClient URIs must be **absolute** (`UriComponentsBuilder.fromUriString(baseUrl)`)
+
+## Adding API surface
+
+Prefer extending `DatasetController` or new controllers in `api/` with thin delegation to services.
+
+## Output
+
+Show only changed methods; skip boilerplate imports and unchanged records.
