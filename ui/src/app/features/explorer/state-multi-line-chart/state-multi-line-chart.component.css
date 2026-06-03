@@ -16,6 +16,7 @@
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
+  touch-action: none;
 }
 
 .multi-line-viewport svg {

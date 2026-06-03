@@ -322,10 +322,33 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       refreshStyles();
     };
 
-    const hideFocus = (): void => {
+    const hideFocus = (clearTooltip = true): void => {
       focus.style('opacity', 0);
-      this.hoveredState = null;
-      this.clearHover();
+      if (clearTooltip) {
+        this.hoveredState = null;
+        this.clearHover();
+      }
+      refreshStyles();
+    };
+
+    const restoreFocus = (): void => {
+      if (this.hoverYear === null || !this.hoveredState) {
+        return;
+      }
+      const yearIndex = years.indexOf(this.hoverYear);
+      if (yearIndex < 0) {
+        return;
+      }
+      const xPos = x(this.hoverYear);
+      const activeState = this.hoveredState;
+      focus.style('opacity', 1);
+      focusLine.attr('x1', xPos).attr('x2', xPos);
+      focusDots
+        .attr('cx', xPos)
+        .attr('cy', d => y(d.points[yearIndex]?.value ?? 0))
+        .attr('fill', d => color(d.state) ?? '#64748b')
+        .attr('r', d => (d.state === activeState ? 4 : 0))
+        .attr('opacity', d => (d.state === activeState ? 1 : 0));
       refreshStyles();
     };
 
@@ -335,21 +358,32 @@ export class StateMultiLineChartComponent implements AfterViewInit, OnChanges, O
       .attr('width', innerWidth)
       .attr('height', innerHeight)
       .attr('fill', 'transparent')
-      .style('cursor', 'crosshair');
+      .style('cursor', 'crosshair')
+      .style('touch-action', 'none');
+
+    const handlePointer = (event: PointerEvent): void => {
+      const [mx, my] = pointer(event, overlay.node() as Element);
+      showAtYear(mx, my);
+    };
 
     overlay
-      .on('mousemove', (event: MouseEvent) => {
-        const [mx, my] = pointer(event, overlay.node() as Element);
-        showAtYear(mx, my);
+      .on('pointerdown', handlePointer)
+      .on('pointermove', handlePointer)
+      .on('pointerleave', (event: PointerEvent) => {
+        // Touch/stylus lifts trigger leave before click; keep tooltip visible for those.
+        if (event.pointerType === 'mouse') {
+          hideFocus(true);
+        }
       })
-      .on('mouseleave', () => {
-        hideFocus();
-      })
-      .on('click', () => {
-        if (this.hoveredState) {
-          this.stateClick.emit(this.hoveredState);
+      .on('click', (event: PointerEvent) => {
+        handlePointer(event);
+        const state = this.hoveredState;
+        if (state) {
+          this.stateClick.emit(state);
         }
       });
+
+    restoreFocus();
   }
 
   private endLabelText(row: SeriesRow): string {
